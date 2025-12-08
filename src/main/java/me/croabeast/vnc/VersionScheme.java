@@ -2,8 +2,18 @@ package me.croabeast.vnc;
 
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * Defines how a {@link MinecraftVersion} can be narrated either as the original classic
+ * numbering or as the modern year-based "drop" scheme. Each implementation carries its own
+ * storytelling rules for translating between eras.
+ */
 public interface VersionScheme {
 
+    /**
+     * Mirrors the official Mojang mapping between classic releases (1.x.y) and
+     * year.drop numbers. This scheme keeps all the canonical quirks that have
+     * accumulated over the years.
+     */
     VersionScheme MOJANG = new VersionScheme() {
 
         @NotNull
@@ -259,18 +269,41 @@ public interface VersionScheme {
             return classicToDrop(v);
         }
 
+        /**
+         * Describes the given version using classic numbering.
+         *
+         * @param version version to translate
+         * @return classic representation
+         */
         @NotNull
         public String toClassic(@NotNull MinecraftVersion version) {
             return formatClassic(version);
         }
 
+        /**
+         * Describes the given version using year.drop numbering.
+         *
+         * @param version version to translate
+         * @return drop representation
+         */
         @NotNull
         public String toDrop(@NotNull MinecraftVersion version) {
             return formatDrop(version);
         }
     };
 
+    /**
+     * A playful scheme that extrapolates Mojang's mapping into an imagined future, giving
+     * community-made aliases to the drops that have yet to exist.
+     */
     VersionScheme CROA_CUSTOM = new VersionScheme() {
+        /**
+         * Provides a classic description for the given version, extending Mojang's rules
+         * with fan-friendly aliases beyond the official timeline.
+         *
+         * @param v version to translate
+         * @return classic representation with custom aliases
+         */
         @NotNull
         public String toClassic(@NotNull MinecraftVersion v) {
             if (v.isClassic()) {
@@ -294,6 +327,13 @@ public interface VersionScheme {
             return toDrop(v);
         }
 
+        /**
+         * Provides a drop description for the given version, incorporating the custom
+         * aliasing strategy for versions that pretend to live past the current roadmap.
+         *
+         * @param version version to translate
+         * @return drop representation with custom aliases
+         */
         @NotNull
         public String toDrop(@NotNull MinecraftVersion version) {
             if (version.isClassic() && version.getMinor() == 22)
@@ -303,17 +343,43 @@ public interface VersionScheme {
         }
     };
 
+    /**
+     * Translates a {@link MinecraftVersion} into its classic persona.
+     *
+     * @param version version to convert
+     * @return classic representation
+     */
     @NotNull
     String toClassic(@NotNull MinecraftVersion version);
 
+    /**
+     * Parses the provided text and hands it to {@link #toClassic(MinecraftVersion)},
+     * enabling quick single-call conversions.
+     *
+     * @param version textual version to convert
+     * @return classic representation
+     */
     @NotNull
     default String toClassic(@NotNull String version) {
         return toClassic(MinecraftVersion.parse(version));
     }
 
+    /**
+     * Translates a {@link MinecraftVersion} into its drop persona.
+     *
+     * @param version version to convert
+     * @return drop representation
+     */
     @NotNull
     String toDrop(@NotNull MinecraftVersion version);
 
+    /**
+     * Parses the provided text and hands it to {@link #toDrop(MinecraftVersion)},
+     * wrapping the conversion flow in a single call.
+     *
+     * @param version textual version to convert
+     * @return drop representation
+     */
     @NotNull
     default String toDrop(@NotNull String version) {
         return toDrop(MinecraftVersion.parse(version));
