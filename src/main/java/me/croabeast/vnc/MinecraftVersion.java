@@ -8,9 +8,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Immutable holder for a Minecraft version number. The class knows whether it is telling the
- * story of the classic 1.x.y era or the year.drop chronicles, so conversion strategies can
- * embellish that lore accordingly.
+ * Immutable description of a Minecraft version understood by the converter.
+ * <p>
+ * Instances know whether they originate from the classic {@code 1.x.y} stream or from the
+ * modern {@code year.drop[.hotfix]} naming used by Mojang. This context lets
+ * {@link VersionScheme} strategies format and translate versions without heuristics or hidden
+ * state. The class performs only structural validation; it does not attempt to decide whether a
+ * particular combination is historically real.
  */
 @RequiredArgsConstructor
 @Getter
@@ -19,31 +23,35 @@ public final class MinecraftVersion {
     private static final Pattern DOT_VERSION = Pattern.compile("^(\\d+)\\.(\\d+)(?:\\.(\\d+))?$");
 
     /**
-     * Chronicles whether this version belongs to the classic lineage, a flag the getters use
-     * to retell the era-appropriate story in their outputs.
+     * Signals if the version comes from the classic numbering stream (as opposed to the drop
+     * scheme). The flag influences how the version is formatted and which alias rules a
+     * {@link VersionScheme} can safely apply.
      */
     private final boolean classic;
 
     /**
-     * Anchors the primary numeric milestone, starring as the hero in both the raw and descriptive
-     * getters.
+     * First numeric component of the version. Classic releases always use {@code 1} while drop
+     * releases store the calendar year of the drop (for example, {@code 24} for releases named
+     * "24.x").
      */
     private final int major;
 
     /**
-     * Marks the secondary beat of the version narrative, ensuring getters have the rhythm they
-     * need to compose the version string.
+     * Second numeric component. For classic versions this is the familiar minor segment
+     * (e.g., the {@code 20} in {@code 1.20.2}); for drop versions it represents the drop index
+     * within a year (e.g., the {@code 1} in {@code 24.1}).
      */
     private final int minor;
 
     /**
-     * Optional tertiary segment representing patches or hotfix counts, ready for the getter to
-     * showcase when the plot requires extra detail.
+     * Optional tertiary component used for patches and hotfixes. Zero indicates that no explicit
+     * patch segment should be rendered when turning the version back into text.
      */
     private final int patch;
 
     /**
-     * Returns the raw semantic version string without any lore prefixes.
+     * Returns a plain dotted string assembled directly from the numeric fields with no
+     * translation or aliasing applied.
      *
      * @return plain version number
      */
@@ -63,9 +71,10 @@ public final class MinecraftVersion {
     }
 
     /**
-     * Parses a textual representation into a {@link MinecraftVersion}. The method deliberately
-     * keeps a narrow scope, accepting only classic 1.x.y or year.drop formats, and throws an
-     * exception when it encounters time-travelers from unsupported universes.
+     * Parses a textual representation into a {@link MinecraftVersion}. Inputs are restricted to
+     * well-formed classic {@code 1.x[.y]} or drop {@code year.drop[.hotfix]} shapes; everything
+     * else results in an {@link IllegalArgumentException}. This method never infers missing
+     * numbers or rewrites aliases—it simply captures the intent expressed by the caller.
      *
      * @param text text to parse
      * @return parsed immutable version
