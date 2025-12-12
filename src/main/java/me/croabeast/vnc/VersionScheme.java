@@ -3,16 +3,24 @@ package me.croabeast.vnc;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Defines how a {@link MinecraftVersion} can be narrated either as the original classic
- * numbering or as the modern year-based "drop" scheme. Each implementation carries its own
- * storytelling rules for translating between eras.
+ * Pluggable strategy for translating {@link MinecraftVersion} instances between the classic
+ * {@code 1.x[.y]} numbering and Mojang's newer {@code year.drop[.hotfix]} convention. A scheme
+ * encapsulates both directions of the mapping as well as any aliasing rules it wants to expose to
+ * callers.
+ * <p>
+ * Two ready-to-use schemes ship with the converter:
+ * <ul>
+ *     <li>{@link #MOJANG}: a faithful mirror of Mojang's own conversion table.</li>
+ *     <li>{@link #CROA_CUSTOM}: extends the official rules with a lore-friendly alias that treats
+ *     {@code 1.21.11} as the birth of a {@code 1.22.x} line while keeping the underlying drop
+ *     numbers intact.</li>
+ * </ul>
  */
 public interface VersionScheme {
 
     /**
-     * Mirrors the official Mojang mapping between classic releases (1.x.y) and
-     * year.drop numbers. This scheme keeps all the canonical quirks that have
-     * accumulated over the years.
+     * Mirrors the official Mojang mapping between classic releases (1.x.y) and year.drop numbers.
+     * This scheme preserves the canonical quirks and serves as the base for every other strategy.
      */
     VersionScheme MOJANG = new VersionScheme() {
 
@@ -270,7 +278,10 @@ public interface VersionScheme {
         }
 
         /**
-         * Describes the given version using classic numbering.
+         * Presents the supplied version using classic numbering. Classic inputs are formatted using
+         * the rules of this scheme, while drop inputs are translated back into their classic
+         * counterparts according to Mojang's table (or the appropriate aliases when a custom
+         * scheme opts to provide them).
          *
          * @param version version to translate
          * @return classic representation
@@ -281,7 +292,9 @@ public interface VersionScheme {
         }
 
         /**
-         * Describes the given version using year.drop numbering.
+         * Presents the supplied version using year.drop numbering. Drop inputs are passed through
+         * formatting; classic inputs are converted to their corresponding drops using Mojang's
+         * official mapping.
          *
          * @param version version to translate
          * @return drop representation
@@ -293,13 +306,15 @@ public interface VersionScheme {
     };
 
     /**
-     * A playful scheme that extrapolates Mojang's mapping into an imagined future, giving
-     * community-made aliases to the drops that have yet to exist.
+     * A playful scheme that extrapolates Mojang's mapping into an imagined future. It keeps
+     * the official drop names but rebrands {@code 1.21.11} and above as {@code 1.22.x} when
+     * reporting classic numbers.
      */
     VersionScheme CROA_CUSTOM = new VersionScheme() {
         /**
-         * Provides a classic description for the given version, extending Mojang's rules
-         * with fan-friendly aliases beyond the official timeline.
+         * Provides a classic description for the given version, extending Mojang's rules with
+         * fan-friendly aliases beyond the official timeline. Classic {@code 1.21.11+} releases are
+         * rebranded as {@code 1.22.x} while keeping their drop numbers unchanged.
          *
          * @param v version to translate
          * @return classic representation with custom aliases
@@ -328,8 +343,10 @@ public interface VersionScheme {
         }
 
         /**
-         * Provides a drop description for the given version, incorporating the custom
-         * aliasing strategy for versions that pretend to live past the current roadmap.
+         * Provides a drop description for the given version, incorporating the custom aliasing
+         * strategy for versions that pretend to live past the current roadmap. Classic
+         * {@code 1.22.x} inputs are rewritten to their {@code 1.21.11+} equivalents before the
+         * Mojang mapping is applied.
          *
          * @param version version to translate
          * @return drop representation with custom aliases
@@ -344,7 +361,9 @@ public interface VersionScheme {
     };
 
     /**
-     * Translates a {@link MinecraftVersion} into its classic persona.
+     * Translates a {@link MinecraftVersion} into its classic persona. Implementations may choose
+     * to surface aliases or fan interpretations but must always return a syntactically valid
+     * classic string.
      *
      * @param version version to convert
      * @return classic representation
@@ -353,8 +372,8 @@ public interface VersionScheme {
     String toClassic(@NotNull MinecraftVersion version);
 
     /**
-     * Parses the provided text and hands it to {@link #toClassic(MinecraftVersion)},
-     * enabling quick single-call conversions.
+     * Parses the provided text and hands it to {@link #toClassic(MinecraftVersion)}, enabling
+     * single-call conversions for callers that work with raw strings.
      *
      * @param version textual version to convert
      * @return classic representation
@@ -365,7 +384,8 @@ public interface VersionScheme {
     }
 
     /**
-     * Translates a {@link MinecraftVersion} into its drop persona.
+     * Translates a {@link MinecraftVersion} into its drop persona. Implementations are responsible
+     * for applying their own alias rules before deferring to Mojang's mapping.
      *
      * @param version version to convert
      * @return drop representation
@@ -374,8 +394,8 @@ public interface VersionScheme {
     String toDrop(@NotNull MinecraftVersion version);
 
     /**
-     * Parses the provided text and hands it to {@link #toDrop(MinecraftVersion)},
-     * wrapping the conversion flow in a single call.
+     * Parses the provided text and hands it to {@link #toDrop(MinecraftVersion)}, wrapping the
+     * conversion flow in a single call.
      *
      * @param version textual version to convert
      * @return drop representation
