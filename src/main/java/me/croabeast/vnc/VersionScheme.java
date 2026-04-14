@@ -2,381 +2,179 @@ package me.croabeast.vnc;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Objects;
+
 /**
- * Pluggable strategy for translating {@link MinecraftVersion} instances between the classic
- * {@code 1.x[.y]} numbering and Mojang's newer {@code year.drop[.hotfix]} convention. A scheme
- * encapsulates both directions of the mapping as well as any aliasing rules it wants to expose to
- * callers.
- * <p>
- * Two ready-to-use schemes ship with the converter:
+ * Strategy interface for converting between classic Java release numbers and Minecraft's
+ * year-based drop numbering.
+ *
+ * <p>The project ships with three entry points:</p>
  * <ul>
- *     <li>{@link #MOJANG}: a faithful mirror of Mojang's own conversion table.</li>
- *     <li>{@link #CROA_CUSTOM}: extends the official rules with a lore-friendly alias that treats
- *     {@code 1.21.11} as the birth of a {@code 1.22.x} line while keeping the underlying drop
- *     numbers intact.</li>
+ *     <li>{@link #MOJANG}, which keeps the historically grounded mappings and stays conservative
+ *     when no official classic alias exists.</li>
+ *     <li>{@link #CROA_CUSTOM}, which keeps the same historical mappings but treats
+ *     {@code 1.21.11} as a custom {@code 1.22} milestone, continues custom hotfixes on the
+ *     {@code 25.4.x} line, and shifts the projected future classic aliases forward by one minor
+ *     line.</li>
+ *     <li>{@link #mapped(MappingTable)}, which lets callers create their own exact scheme from
+ *     user-defined mappings.</li>
  * </ul>
+ *
+ * <p>Both built-in schemes are exact for the release lines that are explicitly registered in
+ * {@link MappingTable}. Those mappings are based on the real Java release groupings, so hotfix
+ * numbers stay contiguous even when Mojang skipped a classic patch number such as
+ * {@code 1.4.3} or {@code 1.7.3}.</p>
  */
 public interface VersionScheme {
 
     /**
-     * Mirrors the official Mojang mapping between classic releases (1.x.y) and year.drop numbers.
-     * This scheme preserves the canonical quirks and serves as the base for every other strategy.
+     * Creates a scheme backed only by the supplied explicit mapping table.
+     *
+     * <p>The returned scheme normalizes values that are already in the requested family and uses
+     * the table only for cross-family conversions. If a conversion is not present in the table,
+     * the scheme throws an {@link IllegalArgumentException} instead of guessing a fallback.</p>
+     *
+     * @param mappings mapping table to use for exact drop/classic conversions
+     * @return scheme backed by the supplied explicit mappings
+     */
+    @NotNull
+    static VersionScheme mapped(@NotNull MappingTable mappings) {
+        Objects.requireNonNull(mappings, "mappings");
+
+        return new VersionScheme() {
+            @NotNull
+            public String toClassic(@NotNull MinecraftVersion version) {
+                if (version.isClassic())
+                    return MappingTable.normalizeClassic(version);
+
+                String classic = mappings.findClassic(version);
+                if (classic != null)
+                    return classic;
+
+                throw new IllegalArgumentException(
+                        "No classic mapping is defined for drop version " + MappingTable.normalizeDrop(version) + "."
+                );
+            }
+
+            @NotNull
+            public String toDrop(@NotNull MinecraftVersion version) {
+                if (!version.isClassic())
+                    return MappingTable.normalizeDrop(version);
+
+                String drop = mappings.findDrop(version);
+                if (drop != null)
+                    return drop;
+
+                throw new IllegalArgumentException(
+                        "No drop mapping is defined for classic version " + MappingTable.normalizeClassic(version) + "."
+                );
+            }
+        };
+    }
+
+    /**
+     * Canonical scheme that models Mojang's published numbering direction as closely as possible.
+     *
+     * <p>For historical Java releases, this scheme uses an explicit mapping table grouped by the
+     * actual feature update or game drop each version belongs to. That means examples such as
+     * {@code 1.20.3 -> 23.2} and {@code 1.21.4 -> 24.4} are treated as separate drops instead of
+     * being folded into the same release line.</p>
+     *
+     * <p>For post-2025 releases, Mojang no longer publishes a classic {@code 1.x.y} alias. To
+     * avoid inventing more structure than the official numbering guarantees, this scheme only
+     * projects the first drop of a future year back into classic form. Additional future drops
+     * without an explicit table entry are rejected rather than guessed.</p>
      */
     VersionScheme MOJANG = new VersionScheme() {
-
-        @NotNull
-        String classicToDrop(@NotNull MinecraftVersion v) {
-            int minor = v.getMinor(), patch = v.getPatch(), y, d, base;
-
-            if (minor < 22) {
-                switch (minor) {
-                    case 0:  y = 11; d = 1; base = 0; break; // 1.0.x  -> 11.1.x
-                    case 1:  y = 12; d = 1; base = 0; break; // 1.1.x  -> 12.1.x
-                    case 2:  y = 12; d = 2; base = 0; break; // 1.2.x  -> 12.2.x
-                    case 3:  y = 12; d = 3; base = 0; break; // 1.3.x  -> 12.3.x
-                    case 4:  y = 12; d = 4; base = 0; break; // 1.4.x  -> 12.4.x
-
-                    case 5:  y = 13; d = 1; base = 0; break; // 1.5.x  -> 13.1.x
-                    case 6:  y = 13; d = 2; base = 0; break; // 1.6.x  -> 13.2.x
-                    case 7:  y = 13; d = 3; base = 0; break; // 1.7.x  -> 13.3.x
-
-                    case 8:  y = 14; d = 1; base = 0; break; // 1.8.x  -> 14.1.x
-
-                    case 9:  y = 16; d = 1; base = 0; break; // 1.9.x  -> 16.1.x
-                    case 10: y = 16; d = 2; base = 0; break; // 1.10.x -> 16.2.x
-                    case 11: y = 16; d = 3; base = 0; break; // 1.11.x -> 16.3.x
-
-                    case 12: y = 17; d = 1; base = 0; break; // 1.12.x -> 17.1.x
-                    case 13: y = 18; d = 1; base = 0; break; // 1.13.x -> 18.1.x
-
-                    case 14: y = 19; d = 1; base = 0; break; // 1.14.x -> 19.1.x
-                    case 15: y = 19; d = 2; base = 0; break; // 1.15.x -> 19.2.x
-
-                    case 16: y = 20; d = 1; base = 0; break; // 1.16.x -> 20.1.x
-
-                    case 17: y = 21; d = 1; base = 0; break; // 1.17.x -> 21.1.x
-                    case 18: y = 21; d = 2; base = 0; break; // 1.18.x -> 21.2.x
-
-                    case 19: y = 22; d = 1; base = 0; break; // 1.19.x -> 22.1.x
-                    case 20: y = 23; d = 1; base = 0; break; // 1.20.x -> 23.1.x
-
-                    case 21:
-                        switch (patch) {
-                            case 0: case 1: case 2: case 3: case 4:
-                                y = 24;
-                                d = 1;
-                                base = 0;
-                                break;
-
-                            case 5:
-                                y = 25;
-                                d = 1;
-                                base = 5;
-                                break;
-
-                            case 6: case 7: case 8:
-                                y = 25;
-                                d = 2;
-                                base = 6;
-                                break;
-
-                            case 9: case 10:
-                                y = 25;
-                                d = 3;
-                                base = 9;
-                                break;
-
-                            case 11: default:
-                                y = 25;
-                                d = 4;
-                                base = 11;
-                                break;
-                        }
-                        break;
-
-                    default:
-                        throw new IllegalStateException("No year-drop mapping defined for 1." + minor + "." + patch);
-                }
-            } else {
-                y = 26;
-                d = minor - 21;
-                base = 0;
-            }
-
-            int h = Math.max(patch - base, 0);
-            return y + "." + d + (h == 0 ? "" : ("." + h));
-        }
-
-        private String dropToClassic(@NotNull MinecraftVersion v) {
-            int year = v.getMajor(), drop = v.getMinor(), h = v.getPatch(), minor, patch;
-
-            switch (year) {
-                case 11:
-                    if (drop != 1) return null;
-                    minor = 0;
-                    patch = h;
-                    break;
-
-                case 12:
-                    switch (drop) {
-                        case 1: minor = 1; break;
-                        case 2: minor = 2; break;
-                        case 3: minor = 3; break;
-                        case 4: minor = 4; break;
-                        default: return null;
-                    }
-                    patch = h;
-                    break;
-
-                case 13:
-                    switch (drop) {
-                        case 1: minor = 5; break;
-                        case 2: minor = 6; break;
-                        case 3: minor = 7; break;
-                        default: return null;
-                    }
-                    patch = h;
-                    break;
-
-                case 14:
-                    if (drop != 1) return null;
-                    minor = 8;
-                    patch = h;
-                    break;
-
-                case 16:
-                    switch (drop) {
-                        case 1: minor = 9;  break;
-                        case 2: minor = 10; break;
-                        case 3: minor = 11; break;
-                        default: return null;
-                    }
-                    patch = h;
-                    break;
-
-                case 17:
-                    if (drop != 1) return null;
-                    minor = 12;
-                    patch = h;
-                    break;
-
-                case 18:
-                    if (drop != 1) return null;
-                    minor = 13;
-                    patch = h;
-                    break;
-
-                case 19:
-                    switch (drop) {
-                        case 1: minor = 14; break;
-                        case 2: minor = 15; break;
-                        default: return null;
-                    }
-                    patch = h;
-                    break;
-
-                case 20:
-                    if (drop != 1) return null;
-                    minor = 16;
-                    patch = h;
-                    break;
-
-                case 21:
-                    switch (drop) {
-                        case 1: minor = 17; break;
-                        case 2: minor = 18; break;
-                        default: return null;
-                    }
-                    patch = h;
-                    break;
-
-                case 22:
-                    if (drop != 1) return null;
-                    minor = 19;
-                    patch = h;
-                    break;
-
-                case 23:
-                    if (drop != 1) return null;
-                    minor = 20;
-                    patch = h;
-                    break;
-
-                case 24:
-                    if (drop != 1 || h > 4) return null;
-                    minor = 21;
-                    patch = h;
-                    break;
-
-                case 25:
-                    minor = 21;
-                    switch (drop) {
-                        case 1:
-                            if (h != 0) return null;
-                            patch = 5 + h;
-                            break;
-
-                        case 2:
-                            switch (h) {
-                                case 0: patch = 6; break;
-                                case 1: patch = 7; break;
-                                case 2: patch = 8; break;
-                                default: return null;
-                            }
-                            break;
-
-                        case 3:
-                            switch (h) {
-                                case 0: patch = 9; break;
-                                case 1: patch = 10; break;
-                                default: return null;
-                            }
-                            break;
-
-                        case 4:
-                            patch = 11 + h;
-                            break;
-
-                        default: return null;
-                    }
-                    break;
-
-                default: return null;
-            }
-
-            return 1 + "." + minor + (patch > 0 || minor == 0 ? ("." + patch) : "");
-        }
-
-        private String formatClassic(@NotNull MinecraftVersion v) {
-            if (v.isClassic()) {
-                int maj = v.getMajor(), min = v.getMinor(), pat = v.getPatch();
-                return maj + "." + min + (pat > 0 || (maj == 1 && min == 0) ? ("." + pat) : "");
-            }
-
-            int year = v.getMajor();
-
-            if (year >= 11 && year <= 25) {
-                String classic = dropToClassic(v);
-                if (classic != null) return classic;
-            }
-
-            if (year >= 26) {
-                int drop = v.getMinor(), h = v.getPatch(), aliasMajor = 1, aliasMinor = 21 + drop;
-                return aliasMajor + "." + aliasMinor + (h > 0 ? ("." + h) : "");
-            }
-
-            return formatDrop(v);
-        }
-
-        private String formatDrop(@NotNull MinecraftVersion v) {
-            if (!v.isClassic()) {
-                int y = v.getMajor(), d = v.getMinor(), h = v.getPatch();
-                return y + "." + d + (h > 0 ? ("." + h) : "");
-            }
-
-            return classicToDrop(v);
-        }
-
-        /**
-         * Presents the supplied version using classic numbering. Classic inputs are formatted using
-         * the rules of this scheme, while drop inputs are translated back into their classic
-         * counterparts according to Mojang's table (or the appropriate aliases when a custom
-         * scheme opts to provide them).
-         *
-         * @param version version to translate
-         * @return classic representation
-         */
         @NotNull
         public String toClassic(@NotNull MinecraftVersion version) {
-            return formatClassic(version);
+            if (version.isClassic())
+                return MappingTable.normalizeClassic(version);
+
+            String exact = MappingTable.MOJANG_MAPPINGS.findClassic(version);
+            if (exact != null)
+                return exact;
+
+            return MappingTable.projectOfficialClassic(version);
         }
 
-        /**
-         * Presents the supplied version using year.drop numbering. Drop inputs are passed through
-         * formatting; classic inputs are converted to their corresponding drops using Mojang's
-         * official mapping.
-         *
-         * @param version version to translate
-         * @return drop representation
-         */
         @NotNull
         public String toDrop(@NotNull MinecraftVersion version) {
-            return formatDrop(version);
+            if (!version.isClassic())
+                return MappingTable.normalizeDrop(version);
+
+            String exact = MappingTable.MOJANG_MAPPINGS.findDrop(version);
+            if (exact != null)
+                return exact;
+
+            return MappingTable.projectOfficialDrop(version);
         }
     };
 
     /**
-     * A playful scheme that extrapolates Mojang's mapping into an imagined future. It keeps
-     * the official drop names but rebrands {@code 1.21.11} and above as {@code 1.22.x} when
-     * reporting classic numbers.
+     * Custom scheme that keeps the same exact historical mappings as {@link #MOJANG}, but makes
+     * one project-specific reinterpretation.
+     *
+     * <p>Under this scheme, the release line represented officially by {@code 1.21.11} /
+     * {@code 25.4} is treated as a custom {@code 1.22}. Hotfixes on that custom line continue
+     * naturally as {@code 1.22.1 -> 25.4.1}, {@code 1.22.2 -> 25.4.2}, and so on. Because the
+     * base {@code 1.22} identifier is already consumed by that alias, projected future aliases
+     * move forward by one classic minor line: {@code 26.1 -> 1.23},
+     * {@code 26.1.1 -> 1.23.1}, {@code 27.1 -> 1.24}, and so on.</p>
+     *
+     * <p>Outside that reinterpretation, this scheme follows {@link #MOJANG} as closely as
+     * possible.</p>
      */
     VersionScheme CROA_CUSTOM = new VersionScheme() {
-        /**
-         * Provides a classic description for the given version, extending Mojang's rules with
-         * fan-friendly aliases beyond the official timeline. Classic {@code 1.21.11+} releases are
-         * rebranded as {@code 1.22.x} while keeping their drop numbers unchanged.
-         *
-         * @param v version to translate
-         * @return classic representation with custom aliases
-         */
         @NotNull
-        public String toClassic(@NotNull MinecraftVersion v) {
-            if (v.isClassic()) {
-                int min = v.getMinor(), pat = v.getPatch();
-                if (min == 21 && pat >= 11) {
-                    int aliasPatch = pat - 11;
-                    return "1.22" + (aliasPatch > 0 ? ("." + aliasPatch) : "");
-                }
-
-                return MOJANG.toClassic(v);
+        public String toClassic(@NotNull MinecraftVersion version) {
+            if (version.isClassic()) {
+                String normalizedClassic = MappingTable.normalizeClassic(version);
+                String alias = MappingTable.CROA_CUSTOM_ALIASES.get(normalizedClassic);
+                return alias != null ? alias : normalizedClassic;
             }
 
-            int year = v.getMajor(), drop = v.getMinor(), aliasPatch = v.getPatch();
-            if (year == 25 && drop == 4)
-                return "1.22" + (aliasPatch > 0 ? ("." + aliasPatch) : "");
+            String exact = MappingTable.CROA_CUSTOM_MAPPINGS.findClassic(version);
+            if (exact != null) return exact;
 
-            if (year >= 11 && year <= 25) return MOJANG.toClassic(v);
-            if (year >= 26)
-                return "1." + (22 + drop) + (aliasPatch > 0 ? ("." + aliasPatch) : "");
-
-            return toDrop(v);
+            return MappingTable.projectCustomClassic(version);
         }
 
-        /**
-         * Provides a drop description for the given version, incorporating the custom aliasing
-         * strategy for versions that pretend to live past the current roadmap. Classic
-         * {@code 1.22.x} inputs are rewritten to their {@code 1.21.11+} equivalents before the
-         * Mojang mapping is applied.
-         *
-         * @param version version to translate
-         * @return drop representation with custom aliases
-         */
         @NotNull
         public String toDrop(@NotNull MinecraftVersion version) {
-            if (version.isClassic() && version.getMinor() == 22)
-                version = new MinecraftVersion(true, 1, 21, 11 + version.getPatch());
+            if (!version.isClassic())
+                return MappingTable.normalizeDrop(version);
 
-            return MOJANG.toDrop(version);
+            String exact = MappingTable.CROA_CUSTOM_MAPPINGS.findDrop(version);
+            if (exact != null)
+                return exact;
+
+            return MappingTable.projectCustomDrop(version);
         }
     };
 
     /**
-     * Translates a {@link MinecraftVersion} into its classic persona. Implementations may choose
-     * to surface aliases or fan interpretations but must always return a syntactically valid
-     * classic string.
+     * Converts the supplied parsed version into classic numbering.
      *
-     * @param version version to convert
-     * @return classic representation
+     * <p>If the input is already classic, implementations return a normalized classic string.
+     * Otherwise, they translate the version according to the scheme's own mapping rules.</p>
+     *
+     * @param version parsed version to convert
+     * @return classic representation of the supplied version
+     * @throws IllegalArgumentException when the scheme cannot produce a reliable classic mapping
      */
     @NotNull
     String toClassic(@NotNull MinecraftVersion version);
 
     /**
-     * Parses the provided text and hands it to {@link #toClassic(MinecraftVersion)}, enabling
-     * single-call conversions for callers that work with raw strings.
+     * Parses the supplied text and delegates to {@link #toClassic(MinecraftVersion)}.
+     *
+     * <p>This is the convenient entry point when the caller does not need to keep a
+     * {@link MinecraftVersion} instance around.</p>
      *
      * @param version textual version to convert
-     * @return classic representation
+     * @return classic representation of the supplied version
+     * @throws IllegalArgumentException when the text cannot be parsed or the scheme cannot map it
      */
     @NotNull
     default String toClassic(@NotNull String version) {
@@ -384,21 +182,27 @@ public interface VersionScheme {
     }
 
     /**
-     * Translates a {@link MinecraftVersion} into its drop persona. Implementations are responsible
-     * for applying their own alias rules before deferring to Mojang's mapping.
+     * Converts the supplied parsed version into drop numbering.
      *
-     * @param version version to convert
-     * @return drop representation
+     * <p>If the input is already a drop version, implementations return a normalized drop string.
+     * Otherwise, they translate the version according to the scheme's own mapping rules.</p>
+     *
+     * @param version parsed version to convert
+     * @return drop representation of the supplied version
+     * @throws IllegalArgumentException when the scheme cannot produce a reliable drop mapping
      */
     @NotNull
     String toDrop(@NotNull MinecraftVersion version);
 
     /**
-     * Parses the provided text and hands it to {@link #toDrop(MinecraftVersion)}, wrapping the
-     * conversion flow in a single call.
+     * Parses the supplied text and delegates to {@link #toDrop(MinecraftVersion)}.
+     *
+     * <p>This overload is useful when callers want the convenience of string input while still
+     * benefiting from the same validation and mapping rules as the object-based API.</p>
      *
      * @param version textual version to convert
-     * @return drop representation
+     * @return drop representation of the supplied version
+     * @throws IllegalArgumentException when the text cannot be parsed or the scheme cannot map it
      */
     @NotNull
     default String toDrop(@NotNull String version) {
