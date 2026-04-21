@@ -1,55 +1,130 @@
-# Version Numbering Converter
+# VNC (Version Numbering Converter)
 
-Version Numbering Converter (VNC) is a small Java library for translating between Minecraft's classic Java release numbers and the newer year-based drop notation.
+Version Numbering Converter (VNC) is a Java library for working with Minecraft versions across both numbering families:
 
-The project aims to keep those conversions historically accurate by grouping versions by their real release line instead of assuming that every `1.x.*` branch belongs to the same drop. That matters for releases such as `1.20.3`, `1.21.2`, and `1.21.4`, which are separate drops even though they share nearby classic version numbers.
+- Classic Java-style versions such as `1.20.6` and `1.21.11`
+- Year-based drop versions such as `24.1`, `25.4`, and `26.1.1`
 
-## Features
+It covers two use cases:
 
-- Exact historic mappings for Java full releases from `1.0.0` through `1.21.11`
-- Mojang-aligned drop numbering via `VersionScheme.MOJANG`
-- Custom aliasing via `VersionScheme.CROA_CUSTOM`, where `1.21.11` is treated as `1.22`
-- User-defined schemes via `MappingTable` and `VersionScheme.mapped(...)`
-- Parsing support for both text input and pre-built `MinecraftVersion` objects
+- Pure version modeling and conversion through `MinecraftVersion`, `VersionScheme`, and `MappingTable`
+- Bukkit/Paper runtime detection through `VNC`, including server constants, player version resolution, protocol lookup, and version comparisons
 
-## Examples
+## Highlights
+
+- Exact historic mappings from `1.0.0` through `1.21.11`
+- Drop support for current lines such as `25.4`, `26.1`, and `26.1.1`
+- Protocol lookup for exact releases and published snapshots
+- A runtime bridge for Bukkit/Paper with legacy-compatible constants like `SERVER_VERSION`
+- String-based comparisons that correctly handle patch-sensitive boundaries like `1.20.5`
+
+## Core API
+
+### 1. Parse and inspect versions
 
 ```java
-import me.croabeast.vnc.MappingTable;
-import me.croabeast.vnc.MinecraftVersion;
-import me.croabeast.vnc.VersionScheme;
+MinecraftVersion classic = MinecraftVersion.parse("1.21.11");
+MinecraftVersion drop = MinecraftVersion.parse("26.1");
 
-// Historic mappings are grouped by the actual release line.
-String batsAndPots = VersionScheme.MOJANG.toDrop("1.20.3");          // -> "23.2"
-String bundles = VersionScheme.MOJANG.toDrop("1.21.2");              // -> "24.3"
+classic.isClassic();          // true
+classic.getVersion();         // "1.21.11"
+classic.getProtocol();        // 774
+classic.supportsHex();        // true
 
-// Reverse conversion preserves the exact classic release.
-String classic = VersionScheme.MOJANG.toClassic("25.2.2");           // -> "1.21.8"
+drop.isClassic();             // false
+drop.getVersion();            // "26.1"
+drop.getProtocol();           // 775
+```
 
-// The custom scheme treats 1.21.11 as a custom 1.22 milestone.
-String customClassic = VersionScheme.CROA_CUSTOM.toClassic("25.4");  // -> "1.22"
-String customDrop = VersionScheme.CROA_CUSTOM.toDrop("1.22");        // -> "25.4"
-String customHotfixDrop = VersionScheme.CROA_CUSTOM.toDrop("1.22.1");// -> "25.4.1"
+### 2. Convert between numbering schemes
 
-// Because 1.22 is already used, the projected 26.1 line becomes 1.23.
-String projectedClassic = VersionScheme.CROA_CUSTOM.toClassic("26.1"); // -> "1.23"
+```java
+String dropName = VersionScheme.MOJANG.toDrop("1.20.3");      // "23.2"
+String classicName = VersionScheme.MOJANG.toClassic("25.2.2"); // "1.21.8"
 
-// You can also define your own exact scheme.
-VersionScheme customScheme = VersionScheme.mapped(
-        new MappingTable().registerLine(30, 1, "1.50", "1.50.1")
-);
+String customClassic = VersionScheme.CROA_CUSTOM.toClassic("25.4"); // "1.22"
+String customDrop = VersionScheme.CROA_CUSTOM.toDrop("1.22.1");     // "25.4.1"
+```
 
-// You can also work with parsed objects.
-MinecraftVersion parsed = MinecraftVersion.parse("1.19.4");
-String dropName = VersionScheme.MOJANG.toDrop(parsed);               // -> "22.1.4"
-Integer protocol = parsed.getProtocol();                             // -> 762
+### 3. Create your own mapping scheme
 
-// Projected aliases stay scheme-agnostic, so they do not guess protocol numbers.
-Integer unknownProtocol = MinecraftVersion.parse("1.22").getProtocol(); // -> null
+```java
+MappingTable table = new MappingTable()
+        .registerLine(30, 1, "1.50", "1.50.1")
+        .registerMapping("1.51", "30.2");
+
+VersionScheme scheme = VersionScheme.mapped(table);
+
+scheme.toDrop("1.50.1");   // "30.1.1"
+scheme.toClassic("30.2");  // "1.51"
+```
+
+### 4. Resolve protocols
+
+```java
+Integer protocol = MinecraftVersion.protocolForIdentifier("1.20.6");      // 766
+Integer snapshot = MinecraftVersion.protocolForIdentifier("26.2-snapshot-3");
+
+MinecraftVersion newest = MinecraftVersion.fromProtocol(754);              // 1.16.5
+List<MinecraftVersion> all = MinecraftVersion.versionsForProtocol(767);    // 1.21, 1.21.1
+```
+
+## Bukkit / Paper runtime API
+
+`VNC` exposes a runtime snapshot of the current server:
+
+```java
+MinecraftVersion server = VNC.SERVER_MINECRAFT_VERSION;
+String classic = VNC.SERVER_CLASSIC_VERSION;
+String drop = VNC.SERVER_DROP_VERSION;
+int protocol = VNC.SERVER_PROTOCOL;
+double legacy = VNC.SERVER_VERSION;
+
+boolean modernRegistry = VNC.isAtLeast("1.20.5");
+boolean legacyCommands = VNC.isBefore("1.13");
+boolean inRange = VNC.isBetween("1.19", "1.21.11");
+```
+
+Player version resolution uses ViaVersion when present and falls back to the server version otherwise:
+
+```java
+MinecraftVersion playerVersion = VNC.player(player);
+
+if (playerVersion.supportsHex()) {
+    // Safe to send RGB formatting to this player
+}
+```
+
+## Why use the string helpers?
+
+`SERVER_VERSION` is still available for compatibility with older plugins, but patch-sensitive checks should prefer:
+
+```java
+VNC.isAtLeast("1.20.5");
+VNC.isBefore("1.21.9");
+VNC.compare(VNC.SERVER_MINECRAFT_VERSION, "26.1");
+```
+
+That avoids the common limitations of comparing versions only as `double`.
+
+## Requirements
+
+- Java 8+
+- For the Bukkit runtime helpers: a Bukkit/Paper-compatible runtime on the classpath
+- Optional: ViaVersion, if you want `VNC.player(...)` to resolve the effective client version instead of the server version
+
+## Coordinates
+
+If you publish the artifact to your own repository or consume it from a local build, the coordinates are:
+
+```text
+groupId:    me.croabeast
+artifactId: VNC
+version:    1.1.0
 ```
 
 ## Build
 
 ```bash
-./gradlew build
+./gradlew jar
 ```

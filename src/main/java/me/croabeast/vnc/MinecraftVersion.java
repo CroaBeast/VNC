@@ -62,7 +62,6 @@ public final class MinecraftVersion {
      * that appear in the built-in protocol table. It is absent for scheme-dependent projected
      * aliases such as {@code 1.22} or {@code 1.23}.</p>
      */
-    @Nullable
     private final Integer protocol;
 
     /**
@@ -99,6 +98,21 @@ public final class MinecraftVersion {
     @NotNull
     public String getVersion() {
         return major + "." + minor + (patch != 0 ? "." + patch : "");
+    }
+
+    /**
+     * Whether this version supports RGB / hex chat colors.
+     *
+     * <p>Hex colors were introduced in the classic {@code 1.16} line, which corresponds to the
+     * year-based drop line {@code 20.1}. Any later version in either family keeps that support.</p>
+     *
+     * @return {@code true} when hex colors are supported
+     */
+    public boolean supportsHex() {
+        if (classic)
+            return major > 1 || (major == 1 && minor >= 16);
+
+        return major > 20 || (major == 20 && minor >= 1);
     }
 
     /**
