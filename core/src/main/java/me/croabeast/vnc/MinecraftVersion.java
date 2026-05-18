@@ -72,7 +72,7 @@ public final class MinecraftVersion {
      *
      * <p>When the supplied identifier matches an exact release known by the built-in tables,
      * the corresponding protocol number is resolved automatically. Otherwise,
-     * {@link #getProtocol()} returns {@code null}.</p>
+     * {@code getProtocol()} returns {@code null}.</p>
      *
      * @param classic whether this identifier belongs to the classic Java release family
      * @param major   first numeric segment

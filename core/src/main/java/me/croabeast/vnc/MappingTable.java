@@ -1,5 +1,6 @@
 package me.croabeast.vnc;
 
+import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,6 +16,7 @@ import java.util.Map;
  * for several independent drops. Callers can populate their own table and pass it to
  * {@link VersionScheme#mapped(MappingTable)} when they want a custom exact scheme.</p>
  */
+@NoArgsConstructor
 public final class MappingTable {
 
     static final MappingTable MOJANG_MAPPINGS = createMojangMappings();
@@ -26,11 +28,6 @@ public final class MappingTable {
 
     private final Map<String, String> classicToDrop = new LinkedHashMap<>();
     private final Map<String, String> dropToClassic = new LinkedHashMap<>();
-
-    /**
-     * Creates an empty mapping table.
-     */
-    public MappingTable() {}
 
     /**
      * Registers a release line where one drop version maps to a sequence of classic versions.
