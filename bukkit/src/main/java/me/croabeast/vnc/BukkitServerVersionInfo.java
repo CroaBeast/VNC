@@ -6,7 +6,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Objects;
 
 @Getter
-final class ServerVersionInfo {
+final class BukkitServerVersionInfo {
 
     private final MinecraftVersion version;
     private final String classicVersion;
@@ -19,7 +19,7 @@ final class ServerVersionInfo {
     private final int javaVersion;
     private final double serverVersion;
 
-    ServerVersionInfo(
+    BukkitServerVersionInfo(
             @NotNull MinecraftVersion version,
             @NotNull String classicVersion,
             @NotNull String dropVersion,
@@ -44,7 +44,7 @@ final class ServerVersionInfo {
     }
 
     public boolean isAtLeast(@NotNull String version) {
-        return VNC.compare(this.version, version) >= 0;
+        return Versioning.compare(this.version, version) >= 0;
     }
 
     public boolean isAtLeast(int minor) {
@@ -56,11 +56,11 @@ final class ServerVersionInfo {
     }
 
     public boolean isBefore(@NotNull String version) {
-        return VNC.compare(this.version, version) < 0;
+        return Versioning.compare(this.version, version) < 0;
     }
 
     public boolean isBetween(@NotNull String minInclusive, @NotNull String maxInclusive) {
-        return VNC.compare(this.version, minInclusive) >= 0 &&
-                VNC.compare(this.version, maxInclusive) <= 0;
+        return Versioning.compare(this.version, minInclusive) >= 0 &&
+                Versioning.compare(this.version, maxInclusive) <= 0;
     }
 }
