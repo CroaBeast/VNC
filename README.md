@@ -1,130 +1,102 @@
 # VNC (Version Numbering Converter)
 
-Version Numbering Converter (VNC) is a Java library for working with Minecraft versions across both numbering families:
+Version Numbering Converter (VNC) is a Java 8 library for working with Minecraft versions across both numbering families:
 
 - Classic Java-style versions such as `1.20.6` and `1.21.11`
 - Year-based drop versions such as `24.1`, `25.4`, and `26.1.1`
 
-It covers two use cases:
+The project is split so the common API can be used from any Java project without Bukkit on the classpath. Platform-specific runtime helpers live in separate modules and are selected through the bootstrap provider.
 
-- Pure version modeling and conversion through `MinecraftVersion`, `VersionScheme`, and `MappingTable`
-- Bukkit/Paper runtime detection through `VNC`, including server constants, player version resolution, protocol lookup, and version comparisons
+## Modules
 
-## Highlights
-
-- Exact historic mappings from `1.0.0` through `1.21.11`
-- Drop support for current lines such as `25.4`, `26.1`, and `26.1.1`
-- Protocol lookup for exact releases and published snapshots
-- A runtime bridge for Bukkit/Paper with legacy-compatible constants like `SERVER_VERSION`
-- String-based comparisons that correctly handle patch-sensitive boundaries like `1.20.5`
+| Module | Artifact | Purpose |
+| --- | --- | --- |
+| `bootstrap` | `me.croabeast.vnc:VNC` | Final aggregate jar with `VNC`, `core`, and the provider implementations. |
+| `core` | `me.croabeast.vnc:core` | Common parser, provider contract, mapping tables, conversion schemes, protocol lookup, and generic runtime snapshots. |
+| `bukkit` | `me.croabeast.vnc:bukkit` | Internal Bukkit/Paper provider and ViaVersion-backed player protocol lookup. |
+| `mod:fabric` | `me.croabeast.vnc:fabric` | Fabric loader runtime version bridge. |
+| `mod:quilt` | `me.croabeast.vnc:quilt` | Quilt loader runtime version bridge. |
+| `mod:forge` | `me.croabeast.vnc:forge` | Forge runtime version bridge. |
+| `mod:neoforge` | `me.croabeast.vnc:neoforge` | NeoForge runtime version bridge compiled as Java 8 bytecode. |
+| `mod:sponge` | `me.croabeast.vnc:sponge` | Sponge runtime version bridge. |
+| `mod:liteloader` | `me.croabeast.vnc:liteloader` | Legacy LiteLoader bridge. |
+| `proxy:bungee` | `me.croabeast.vnc:bungee` | BungeeCord proxy version bridge. |
+| `proxy:velocity` | `me.croabeast.vnc:velocity` | Velocity proxy bridge for a supplied backend/support Minecraft version. |
 
 ## Core API
-
-### 1. Parse and inspect versions
 
 ```java
 MinecraftVersion classic = MinecraftVersion.parse("1.21.11");
 MinecraftVersion drop = MinecraftVersion.parse("26.1");
 
-classic.isClassic();          // true
 classic.getVersion();         // "1.21.11"
 classic.getProtocol();        // 774
 classic.supportsHex();        // true
 
-drop.isClassic();             // false
 drop.getVersion();            // "26.1"
 drop.getProtocol();           // 775
 ```
 
-### 2. Convert between numbering schemes
-
 ```java
-String dropName = VersionScheme.MOJANG.toDrop("1.20.3");      // "23.2"
+String dropName = VersionScheme.MOJANG.toDrop("1.20.3");       // "23.2"
 String classicName = VersionScheme.MOJANG.toClassic("25.2.2"); // "1.21.8"
 
-String customClassic = VersionScheme.CROA_CUSTOM.toClassic("25.4"); // "1.22"
-String customDrop = VersionScheme.CROA_CUSTOM.toDrop("1.22.1");     // "25.4.1"
+boolean modernRegistry = Versioning.isAtLeast(MinecraftVersion.parse("1.20.6"), "1.20.5");
+int comparison = VNC.compare(MinecraftVersion.parse("26.1"), "1.21.11");
 ```
 
-### 3. Create your own mapping scheme
+## Platform Runtime API
+
+Use `bootstrap` when you want `VNC` to detect the runtime provider:
 
 ```java
-MappingTable table = new MappingTable()
-        .registerLine(30, 1, "1.50", "1.50.1")
-        .registerMapping("1.51", "30.2");
+VNCProvider provider = VNC.getProvider();
 
-VersionScheme scheme = VersionScheme.mapped(table);
-
-scheme.toDrop("1.50.1");   // "30.1.1"
-scheme.toClassic("30.2");  // "1.51"
+String platform = provider.getPlatform();
+String classic = provider.getClassicVersion();
+String drop = provider.getDropVersion();
+int protocol = provider.getProtocol();
+boolean modernRegistry = provider.isAtLeast("1.20.5");
 ```
 
-### 4. Resolve protocols
-
-```java
-Integer protocol = MinecraftVersion.protocolForIdentifier("1.20.6");      // 766
-Integer snapshot = MinecraftVersion.protocolForIdentifier("26.2-snapshot-3");
-
-MinecraftVersion newest = MinecraftVersion.fromProtocol(754);              // 1.16.5
-List<MinecraftVersion> all = MinecraftVersion.versionsForProtocol(767);    // 1.21, 1.21.1
-```
-
-## Bukkit / Paper runtime API
-
-`VNC` exposes a runtime snapshot of the current server:
+`VNC` still exposes convenience methods for the detected provider:
 
 ```java
 MinecraftVersion server = VNC.SERVER_MINECRAFT_VERSION;
-String classic = VNC.SERVER_CLASSIC_VERSION;
-String drop = VNC.SERVER_DROP_VERSION;
-int protocol = VNC.SERVER_PROTOCOL;
 double legacy = VNC.SERVER_VERSION;
-
 boolean modernRegistry = VNC.isAtLeast("1.20.5");
-boolean legacyCommands = VNC.isBefore("1.13");
-boolean inRange = VNC.isBetween("1.19", "1.21.11");
 ```
 
-Player version resolution uses ViaVersion when present and falls back to the server version otherwise:
+When the runtime may not have a supported provider, use the nullable accessor:
 
 ```java
-MinecraftVersion playerVersion = VNC.player(player);
-
-if (playerVersion.supportsHex()) {
-    // Safe to send RGB formatting to this player
+VNCProvider provider = VNC.getProviderOrNull();
+if (provider != null && provider.isAtLeast("1.20.5")) {
+    // use modern behavior
 }
 ```
 
-## Why use the string helpers?
+Platform modules contain package-private provider implementations. Consumers should depend on `bootstrap` for runtime detection instead of calling loader-specific classes directly.
 
-`SERVER_VERSION` is still available for compatibility with older plugins, but patch-sensitive checks should prefer:
-
-```java
-VNC.isAtLeast("1.20.5");
-VNC.isBefore("1.21.9");
-VNC.compare(VNC.SERVER_MINECRAFT_VERSION, "26.1");
-```
-
-That avoids the common limitations of comparing versions only as `double`.
+Velocity does not expose one global backend Minecraft version. Its provider is still detected from the Velocity API, but version methods need a `minecraft.version` system property.
 
 ## Requirements
 
-- Java 8+
-- For the Bukkit runtime helpers: a Bukkit/Paper-compatible runtime on the classpath
-- Optional: ViaVersion, if you want `VNC.player(...)` to resolve the effective client version instead of the server version
-
-## Coordinates
-
-If you publish the artifact to your own repository or consume it from a local build, the coordinates are:
-
-```text
-groupId:    me.croabeast
-artifactId: VNC
-version:    1.1.0
-```
+- Java 8 bytecode for every module
+- Gradle 9.4.1 wrapper for local builds
+- Optional platform APIs are `compileOnly`; platform modules use direct APIs and guard runtime detection with `Throwable`/linkage protection
+- The NeoForge module targets NeoForge `21.1.230`, compiles Maven-style with `source/target 1.8`, and only resolves at runtime when Java `21+` and NeoForge are present
 
 ## Build
 
 ```bash
-./gradlew jar
+./gradlew clean build
 ```
+
+The final consumer jar is generated by the `bootstrap` module:
+
+```text
+bootstrap/build/libs/VNC-${version}.jar
+```
+
+Maven repository publishing is handled only by `.github/workflows/publish.yml`.
