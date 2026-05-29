@@ -64,6 +64,11 @@ public interface VNCProvider {
     }
 
     @NotNull
+    default String getVersion() {
+        return resolve().getVersion();
+    }
+
+    @NotNull
     default String getClassicVersion() {
         return resolve().getClassicVersion();
     }
@@ -114,6 +119,7 @@ public interface VNCProvider {
         private final String platform;
         private final String implementationVersion;
         private final MinecraftVersion minecraftVersion;
+        private final String version;
         private final String classicVersion;
         private final String dropVersion;
         private final int protocol;
@@ -128,6 +134,7 @@ public interface VNCProvider {
             this.platform = Objects.requireNonNull(platform, "platform");
             this.implementationVersion = implementationVersion != null ? implementationVersion : "";
             this.minecraftVersion = Objects.requireNonNull(minecraftVersion, "minecraftVersion");
+            this.version = minecraftVersion.getVersion();
             this.classicVersion = Versioning.DEFAULT_SCHEME.toClassic(minecraftVersion);
             this.dropVersion = Versioning.DEFAULT_SCHEME.toDrop(minecraftVersion);
             this.protocol = minecraftVersion.getProtocol() != null ? minecraftVersion.getProtocol() : -1;
