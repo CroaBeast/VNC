@@ -44,28 +44,6 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Upload VNC artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: VNC-artifacts-${{ env.VERSION }}
-          if-no-files-found: error
-          path: |
-            bootstrap/build/libs/VNC-${{ env.VERSION }}.jar
-            bootstrap/build/libs/VNC-${{ env.VERSION }}-sources.jar
-            bootstrap/build/libs/VNC-${{ env.VERSION }}-javadoc.jar
-            core/build/libs/core-${{ env.VERSION }}.jar
-            core/build/libs/core-${{ env.VERSION }}-sources.jar
-            core/build/libs/core-${{ env.VERSION }}-javadoc.jar
-            bukkit/build/libs/bukkit-${{ env.VERSION }}.jar
-            bukkit/build/libs/bukkit-${{ env.VERSION }}-sources.jar
-            bukkit/build/libs/bukkit-${{ env.VERSION }}-javadoc.jar
-            mod/*/build/libs/*-${{ env.VERSION }}.jar
-            mod/*/build/libs/*-${{ env.VERSION }}-sources.jar
-            mod/*/build/libs/*-${{ env.VERSION }}-javadoc.jar
-            proxy/*/build/libs/*-${{ env.VERSION }}.jar
-            proxy/*/build/libs/*-${{ env.VERSION }}-sources.jar
-            proxy/*/build/libs/*-${{ env.VERSION }}-javadoc.jar
-
       - name: Checkout Maven repository
         if: github.event_name != 'pull_request'
         uses: actions/checkout@v4
