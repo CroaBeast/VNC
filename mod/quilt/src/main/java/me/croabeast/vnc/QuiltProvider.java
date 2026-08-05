@@ -10,15 +10,28 @@ import java.util.Optional;
 
 final class QuiltProvider implements VNCProvider {
 
-    @Override
     @NotNull
     public VNCProvider.VersionInfo resolve() {
         return VersionResolver.resolve(
-                "Quilt",
+                flavor(),
                 loaderVersion(),
                 minecraftVersion(),
                 System.getProperty("minecraft.version")
         );
+    }
+
+    /**
+     * Returns {@code Ornithe} when the Ornithe Standard Libraries are present, otherwise
+     * {@code Quilt}. Ornithe supports both the Fabric and the Quilt loader.
+     *
+     * @return resolved flavor name
+     */
+    @NotNull
+    public String flavor() {
+        boolean ornithe = QuiltLoader.getModContainer("osl").isPresent()
+                || QuiltLoader.getModContainer("ornithe-standard-libraries").isPresent();
+
+        return ornithe ? "Ornithe" : "Quilt";
     }
 
     @Override

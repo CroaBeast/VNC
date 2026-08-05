@@ -9,15 +9,28 @@ import java.util.Optional;
 
 final class FabricProvider implements VNCProvider {
 
-    @Override
     @NotNull
     public VNCProvider.VersionInfo resolve() {
+        String gameVersion = minecraftVersion();
+        String flavor = FabricFlavor.detect(gameVersion);
+
         return VersionResolver.resolve(
-                "Fabric",
+                flavor,
                 loaderVersion(),
-                minecraftVersion(),
+                FabricFlavor.normalizeGameVersion(flavor, gameVersion),
                 System.getProperty("minecraft.version")
         );
+    }
+
+    /**
+     * Returns the Fabric distribution running the game: {@code Fabric}, {@code Legacy Fabric},
+     * {@code Ornithe}, {@code Babric}, or {@code Babric (BTA)}.
+     *
+     * @return resolved flavor name
+     */
+    @NotNull
+    public String flavor() {
+        return FabricFlavor.detect(minecraftVersion());
     }
 
     @Override
@@ -39,21 +52,19 @@ final class FabricProvider implements VNCProvider {
     public String loaderVersion() {
         return VersionResolver.firstNonBlank(
                 modVersion("fabricloader"),
-                implementationVersion(FabricLoader.class)
+                implementationVersion()
         );
     }
 
     @Nullable
     private String modVersion(@NotNull String modId) {
         Optional<ModContainer> container = FabricLoader.getInstance().getModContainer(modId);
-        if (!container.isPresent()) return null;
-
-        return container.get().getMetadata().getVersion().getFriendlyString();
+        return container.map(modContainer -> modContainer.getMetadata().getVersion().getFriendlyString()).orElse(null);
     }
 
     @Nullable
-    private String implementationVersion(@NotNull Class<?> type) {
-        Package pkg = type.getPackage();
+    private String implementationVersion() {
+        Package pkg = FabricLoader.class.getPackage();
         return pkg != null ? pkg.getImplementationVersion() : null;
     }
 }
