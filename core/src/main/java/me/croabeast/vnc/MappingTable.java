@@ -25,6 +25,7 @@ public final class MappingTable {
     static final Map<String, Integer> CLASSIC_PROTOCOLS = createClassicProtocols();
     static final Map<String, Integer> DROP_PROTOCOLS = createDropProtocols();
     static final Map<String, Integer> SNAPSHOT_PROTOCOLS = createSnapshotProtocols();
+    static final Map<String, Integer> PRE_RELEASE_PROTOCOLS = createPreReleaseProtocols();
 
     private final Map<String, String> classicToDrop = new LinkedHashMap<>();
     private final Map<String, String> dropToClassic = new LinkedHashMap<>();
@@ -96,12 +97,19 @@ public final class MappingTable {
     }
 
     @Nullable
-    static Integer findProtocol(boolean classic, int major, int minor, int patch) {
+    static Integer findProtocol(@NotNull MinecraftVersion version) {
+        // The static tables below are still null while this class initializes its own mappings,
+        // because building them parses versions, which lands back here.
+        if (version.getPhase().isPreRelease())
+            return PRE_RELEASE_PROTOCOLS == null ? null : PRE_RELEASE_PROTOCOLS.get(version.getVersion());
+
+        boolean classic = version.getFamily() == VersionFamily.CLASSIC;
+
         Map<String, Integer> protocols = classic ? CLASSIC_PROTOCOLS : DROP_PROTOCOLS;
         if (protocols == null)
             return null;
 
-        return protocols.get(classic ? normalizeClassic(major, minor, patch) : normalizeDrop(major, minor, patch));
+        return protocols.get(classic ? normalizeClassic(version) : normalizeDrop(version));
     }
 
     @Nullable
@@ -119,6 +127,23 @@ public final class MappingTable {
 
     static MappingTable createMojangMappings() {
         return new MappingTable()
+                // Alpha and Beta take slot 0 of their year, indexed chronologically. Slot 0 was
+                // never used by a release, so the release lines below stay untouched.
+                .registerLine(10, 0,
+                        "a1.0.4", "a1.0.5_01", "a1.0.11", "a1.0.14", "a1.0.15",
+                        "a1.0.16", "a1.0.17_02", "a1.0.17_04", "a1.1.0", "a1.1.2",
+                        "a1.1.2_01", "a1.2.0", "a1.2.0_01", "a1.2.0_02", "a1.2.1",
+                        "a1.2.1_01", "a1.2.2a", "a1.2.2b", "a1.2.3", "a1.2.3_01",
+                        "a1.2.3_02", "a1.2.3_04", "a1.2.4_01", "a1.2.5", "a1.2.6",
+                        "b1.0", "b1.0_01", "b1.0.2", "b1.1_01", "b1.1_02"
+                )
+                .registerLine(11, 0,
+                        "b1.2", "b1.2_01", "b1.2_02", "b1.3b", "b1.3_01",
+                        "b1.4", "b1.4_01", "b1.5", "b1.5_01", "b1.6",
+                        "b1.6.1", "b1.6.2", "b1.6.3", "b1.6.4", "b1.6.5",
+                        "b1.6.6", "b1.7", "b1.7.2", "b1.7.3", "b1.8",
+                        "b1.8.1"
+                )
                 .registerLine(11, 1, "1.0.0", "1.0.1")
                 .registerLine(12, 1, "1.1")
                 .registerLine(12, 2, "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5")
@@ -283,6 +308,42 @@ public final class MappingTable {
         return Collections.unmodifiableMap(protocols);
     }
 
+    static Map<String, Integer> createPreReleaseProtocols() {
+        Map<String, Integer> protocols = new LinkedHashMap<>();
+
+        protocols.put("a1.2.5", 6);
+        protocols.put("a1.2.6", 6);
+
+        protocols.put("b1.0", 7);
+        protocols.put("b1.0_01", 7);
+        protocols.put("b1.0.2", 7);
+        protocols.put("b1.1_01", 7);
+        protocols.put("b1.1_02", 7);
+        protocols.put("b1.2", 8);
+        protocols.put("b1.2_01", 8);
+        protocols.put("b1.2_02", 8);
+        protocols.put("b1.3b", 9);
+        protocols.put("b1.3_01", 9);
+        protocols.put("b1.4", 10);
+        protocols.put("b1.4_01", 10);
+        protocols.put("b1.5", 11);
+        protocols.put("b1.5_01", 11);
+        protocols.put("b1.6", 12);
+        protocols.put("b1.6.1", 13);
+        protocols.put("b1.6.2", 13);
+        protocols.put("b1.6.3", 13);
+        protocols.put("b1.6.4", 13);
+        protocols.put("b1.6.5", 13);
+        protocols.put("b1.6.6", 13);
+        protocols.put("b1.7", 14);
+        protocols.put("b1.7.2", 14);
+        protocols.put("b1.7.3", 14);
+        protocols.put("b1.8", 17);
+        protocols.put("b1.8.1", 17);
+
+        return Collections.unmodifiableMap(protocols);
+    }
+
     static Map<String, Integer> createSnapshotProtocols() {
         Map<String, Integer> protocols = new LinkedHashMap<>();
         protocols.put("26.2-snapshot-1", 1073742130);
@@ -320,6 +381,12 @@ public final class MappingTable {
 
     @NotNull
     static String projectOfficialDrop(@NotNull MinecraftVersion version) {
+        if (version.getPhase().isPreRelease())
+            throw new IllegalArgumentException(
+                    "No drop mapping is defined for pre-release version " + version.getVersion() +
+                            ". Only the Alpha and Beta identifiers published by Mojang are mapped."
+            );
+
         if (version.getMajor() == 1 && version.getMinor() == 22 && version.getPatch() >= 3)
             return "26.2" + (version.getPatch() > 3 ? "." + (version.getPatch() - 3) : "");
 
@@ -367,6 +434,11 @@ public final class MappingTable {
 
     @NotNull
     static String normalizeClassic(@NotNull MinecraftVersion version) {
+        // Alpha and Beta keys need the phase, build, and qualifier parts to stay unique:
+        // a1.2.2a and a1.2.2b share the same numeric segments.
+        if (version.getPhase().isPreRelease())
+            return version.getVersion();
+
         return normalizeClassic(version.getMajor(), version.getMinor(), version.getPatch());
     }
 

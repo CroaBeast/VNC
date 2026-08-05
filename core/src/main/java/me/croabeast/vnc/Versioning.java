@@ -17,7 +17,10 @@ import java.util.regex.Pattern;
 @UtilityClass
 public class Versioning {
 
-    private static final Pattern VERSION_TOKEN = Pattern.compile("(\\d+\\.\\d+(?:\\.\\d+)?)");
+    // The lookarounds keep the fallback from truncating a longer number: "1.7.7.0" must not
+    // resolve to the real release 1.7.7.
+    private static final Pattern VERSION_TOKEN =
+            Pattern.compile("(?<![\\d.])((?:[ab])?\\d+\\.\\d+(?:\\.\\d+)?(?:_\\d+)?[a-z]?)(?![\\d.])");
 
     /**
      * Default conversion scheme used by platform modules when normalizing runtime versions.
@@ -27,8 +30,12 @@ public class Versioning {
     /**
      * Parses the first Minecraft-looking version token from arbitrary runtime text.
      *
-     * <p>Values such as {@code 1.20.6-R0.1-SNAPSHOT}, {@code git-Paper-123 (MC: 1.21.4)}, and
-     * plain values such as {@code 26.1} are supported.</p>
+     * <p>Values such as {@code 1.20.6-R0.1-SNAPSHOT}, {@code git-Paper-123 (MC: 1.21.4)},
+     * {@code b1.7.3}, and plain values such as {@code 26.1} are supported.</p>
+     *
+     * <p>The extraction fallback deliberately gives up instead of guessing when the text holds a
+     * version-shaped token it cannot fully parse. Values such as {@code 1.7.7.0} return
+     * {@code null} rather than the unrelated release {@code 1.7.7}.</p>
      *
      * @param value runtime version text
      * @return parsed version, or {@code null} when no supported token is present
@@ -37,21 +44,30 @@ public class Versioning {
     public static MinecraftVersion parseMinecraftVersion(@Nullable String value) {
         if (value == null) return null;
 
-        String token = value.trim();
+        String trimmed = value.trim();
+        if (MinecraftVersion.isIdentifier(trimmed))
+            return parseOrNull(trimmed);
 
-        int hyphen = token.indexOf('-');
-        if (hyphen >= 0)
-            token = token.substring(0, hyphen);
+        int hyphen = trimmed.indexOf('-');
+        if (hyphen >= 0) {
+            String token = trimmed.substring(0, hyphen);
+            if (MinecraftVersion.isIdentifier(token))
+                return parseOrNull(token);
+        }
 
+        Matcher matcher = VERSION_TOKEN.matcher(trimmed);
+        while (matcher.find()) {
+            MinecraftVersion version = parseOrNull(matcher.group(1));
+            if (version != null) return version;
+        }
+
+        return null;
+    }
+
+    @Nullable
+    private static MinecraftVersion parseOrNull(@NotNull String text) {
         try {
-            return MinecraftVersion.parse(token);
-        } catch (IllegalArgumentException ignored) {}
-
-        Matcher matcher = VERSION_TOKEN.matcher(value);
-        if (!matcher.find()) return null;
-
-        try {
-            return MinecraftVersion.parse(matcher.group(1));
+            return MinecraftVersion.parse(text);
         } catch (IllegalArgumentException ignored) {
             return null;
         }
@@ -93,13 +109,23 @@ public class Versioning {
         MinecraftVersion leftClassic = comparableClassic(Objects.requireNonNull(left, "left"));
         MinecraftVersion rightClassic = comparableClassic(Objects.requireNonNull(right, "right"));
 
-        int result = Integer.compare(leftClassic.getMajor(), rightClassic.getMajor());
+        // Alpha and Beta reused the release line's numbers, so the phase decides first.
+        int result = Integer.compare(leftClassic.getPhase().ordinal(), rightClassic.getPhase().ordinal());
+        if (result != 0) return result;
+
+        result = Integer.compare(leftClassic.getMajor(), rightClassic.getMajor());
         if (result != 0) return result;
 
         result = Integer.compare(leftClassic.getMinor(), rightClassic.getMinor());
         if (result != 0) return result;
 
-        return Integer.compare(leftClassic.getPatch(), rightClassic.getPatch());
+        result = Integer.compare(leftClassic.getPatch(), rightClassic.getPatch());
+        if (result != 0) return result;
+
+        result = Integer.compare(leftClassic.getBuild(), rightClassic.getBuild());
+        if (result != 0) return result;
+
+        return Character.compare(leftClassic.getQualifier(), rightClassic.getQualifier());
     }
 
     public static boolean isAtLeast(@NotNull MinecraftVersion version, @NotNull String minimum) {
@@ -144,8 +170,8 @@ public class Versioning {
      * @return legacy double representation
      */
     public static double toLegacyServerVersion(@NotNull String classicVersion) {
-        if (!classicVersion.startsWith("1."))
-            throw new IllegalArgumentException("Classic version must start with 1.: " + classicVersion);
+        // Alpha and Beta have no legacy double shape: it was only ever used for 1.x releases.
+        if (!classicVersion.startsWith("1.")) return -1D;
 
         return Double.parseDouble(classicVersion.substring(2));
     }
@@ -157,6 +183,8 @@ public class Versioning {
 
     @NotNull
     private static MinecraftVersion comparableClassic(@NotNull MinecraftVersion version) {
-        return version.isClassic() ? version : MinecraftVersion.parse(DEFAULT_SCHEME.toClassic(version));
+        return version.getFamily() == VersionFamily.CLASSIC
+                ? version
+                : MinecraftVersion.parse(DEFAULT_SCHEME.toClassic(version));
     }
 }

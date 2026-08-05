@@ -44,7 +44,7 @@ public interface VersionScheme {
         return new VersionScheme() {
             @NotNull
             public String toClassic(@NotNull MinecraftVersion version) {
-                if (version.isClassic())
+                if (version.getFamily() == VersionFamily.CLASSIC)
                     return MappingTable.normalizeClassic(version);
 
                 String classic = mappings.findClassic(version);
@@ -58,7 +58,7 @@ public interface VersionScheme {
 
             @NotNull
             public String toDrop(@NotNull MinecraftVersion version) {
-                if (!version.isClassic())
+                if (version.getFamily() != VersionFamily.CLASSIC)
                     return MappingTable.normalizeDrop(version);
 
                 String drop = mappings.findDrop(version);
@@ -88,7 +88,7 @@ public interface VersionScheme {
     VersionScheme MOJANG = new VersionScheme() {
         @NotNull
         public String toClassic(@NotNull MinecraftVersion version) {
-            if (version.isClassic())
+            if (version.getFamily() == VersionFamily.CLASSIC)
                 return MappingTable.normalizeClassic(version);
 
             String exact = MappingTable.MOJANG_MAPPINGS.findClassic(version);
@@ -100,7 +100,7 @@ public interface VersionScheme {
 
         @NotNull
         public String toDrop(@NotNull MinecraftVersion version) {
-            if (!version.isClassic())
+            if (version.getFamily() != VersionFamily.CLASSIC)
                 return MappingTable.normalizeDrop(version);
 
             String exact = MappingTable.MOJANG_MAPPINGS.findDrop(version);
@@ -128,7 +128,7 @@ public interface VersionScheme {
     VersionScheme CROA_CUSTOM = new VersionScheme() {
         @NotNull
         public String toClassic(@NotNull MinecraftVersion version) {
-            if (version.isClassic()) {
+            if (version.getFamily() == VersionFamily.CLASSIC) {
                 String normalizedClassic = MappingTable.normalizeClassic(version);
                 String alias = MappingTable.CROA_CUSTOM_ALIASES.get(normalizedClassic);
                 return alias != null ? alias : normalizedClassic;
@@ -142,7 +142,7 @@ public interface VersionScheme {
 
         @NotNull
         public String toDrop(@NotNull MinecraftVersion version) {
-            if (!version.isClassic())
+            if (version.getFamily() != VersionFamily.CLASSIC)
                 return MappingTable.normalizeDrop(version);
 
             String exact = MappingTable.CROA_CUSTOM_MAPPINGS.findDrop(version);

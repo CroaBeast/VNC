@@ -16,14 +16,23 @@ import java.util.regex.Pattern;
 /**
  * Immutable representation of a Minecraft version identifier.
  *
- * <p>The library works with two families of version numbers:</p>
+ * <p>The library works with two numbering families, described by {@link VersionFamily}:</p>
  * <ul>
  *     <li>Classic Java release numbers such as {@code 1.20.6} or {@code 1.21.11}.</li>
  *     <li>Year-based drop numbers such as {@code 25.2} or {@code 26.1.1}.</li>
  * </ul>
  *
- * <p>A {@code MinecraftVersion} stores only the parsed numeric structure and a flag that
- * tells callers which family the original value belongs to. It also exposes the published
+ * <p>Orthogonally to the family, {@link VersionPhase} tells whether the identifier belongs to the
+ * Alpha, Beta, or release line. Alpha and Beta reused the same {@code 1.x} numbers the release
+ * line later used, so {@code b1.2} and {@code 1.2.1} are only distinguishable through the
+ * phase.</p>
+ *
+ * <p>Alpha and Beta identifiers also carry two extra parts that the release line never used: a
+ * {@code _NN} build suffix ({@code a1.0.17_02}) and a trailing letter qualifier
+ * ({@code a1.2.2a}). Both are stored so {@link #getVersion()} reproduces the original identifier
+ * exactly.</p>
+ *
+ * <p>A {@code MinecraftVersion} stores only the parsed structure. It also exposes the published
  * network protocol number when the parsed identifier corresponds to an exact release covered by
  * the library's built-in tables.</p>
  *
@@ -35,13 +44,25 @@ import java.util.regex.Pattern;
 @Getter
 public final class MinecraftVersion {
 
-    private static final Pattern DOT_VERSION = Pattern.compile("^(\\d+)\\.(\\d+)(?:\\.(\\d+))?$");
+    private static final Pattern IDENTIFIER = Pattern.compile(
+            "^(?:(alpha|beta|a|b)[ _-]?)?" +
+                    "(\\d+)\\.(\\d+)(?:\\.(\\d+))?" +
+                    "(?:_(\\d+))?" +
+                    "([a-z])?" +
+                    "(?:[ _-](alpha|beta))?$",
+            Pattern.CASE_INSENSITIVE
+    );
+
     private static final Map<Integer, List<MinecraftVersion>> PROTOCOL_INDEX = createProtocolIndex();
 
     /**
-     * Whether this instance represents a classic Java release number.
+     * The numbering family this identifier is written in.
      */
-    private final boolean classic;
+    private final VersionFamily family;
+    /**
+     * The development phase this identifier belongs to.
+     */
+    private final VersionPhase phase;
     /**
      * The first numeric segment of the parsed version.
      */
@@ -55,6 +76,16 @@ public final class MinecraftVersion {
      */
     private final int patch;
     /**
+     * The {@code _NN} build suffix used by several Alpha and Beta identifiers, or {@code 0} when
+     * the identifier has none.
+     */
+    private final int build;
+    /**
+     * The trailing letter used by {@code a1.2.2a}, {@code a1.2.2b}, and {@code b1.3b}, or
+     * {@code 0} when the identifier has none.
+     */
+    private final char qualifier;
+    /**
      * The published network protocol number for this exact identifier, or {@code null} when the
      * identifier is only a projected alias and not a known exact release in the built-in tables.
      *
@@ -65,39 +96,123 @@ public final class MinecraftVersion {
     private final Integer protocol;
 
     /**
-     * Creates an immutable version descriptor from already parsed numeric parts.
+     * Creates an immutable version descriptor from already parsed parts.
      *
-     * <p>The constructor does not infer the numbering family. Callers are responsible for
-     * supplying the correct {@code classic} flag for the numeric segments they provide.</p>
+     * <p>The constructor does not infer the family or the phase. Callers are responsible for
+     * supplying the correct values for the segments they provide.</p>
      *
      * <p>When the supplied identifier matches an exact release known by the built-in tables,
      * the corresponding protocol number is resolved automatically. Otherwise,
      * {@code getProtocol()} returns {@code null}.</p>
      *
+     * @param family    numbering family of the identifier
+     * @param phase     development phase of the identifier
+     * @param major     first numeric segment
+     * @param minor     second numeric segment
+     * @param patch     third numeric segment, or {@code 0} when omitted
+     * @param build     {@code _NN} build suffix, or {@code 0} when absent
+     * @param qualifier trailing letter, or {@code 0} when absent
+     */
+    public MinecraftVersion(
+            @NotNull VersionFamily family,
+            @NotNull VersionPhase phase,
+            int major,
+            int minor,
+            int patch,
+            int build,
+            char qualifier
+    ) {
+        this.family = Objects.requireNonNull(family, "family");
+        this.phase = Objects.requireNonNull(phase, "phase");
+        this.major = major;
+        this.minor = minor;
+        this.patch = patch;
+        this.build = build;
+        this.qualifier = qualifier;
+        this.protocol = MappingTable.findProtocol(this);
+    }
+
+    /**
+     * Creates a release-line version descriptor without build or qualifier parts.
+     *
+     * @param family numbering family of the identifier
+     * @param major  first numeric segment
+     * @param minor  second numeric segment
+     * @param patch  third numeric segment, or {@code 0} when omitted
+     */
+    public MinecraftVersion(@NotNull VersionFamily family, int major, int minor, int patch) {
+        this(family, VersionPhase.RELEASE, major, minor, patch, 0, (char) 0);
+    }
+
+    /**
+     * Creates a release-line version descriptor from the legacy boolean family flag.
+     *
      * @param classic whether this identifier belongs to the classic Java release family
      * @param major   first numeric segment
      * @param minor   second numeric segment
      * @param patch   third numeric segment, or {@code 0} when omitted
+     * @deprecated use {@link #MinecraftVersion(VersionFamily, int, int, int)} instead; the boolean
+     * flag cannot express the Alpha and Beta phases.
      */
+    @Deprecated
     public MinecraftVersion(boolean classic, int major, int minor, int patch) {
-        this.classic = classic;
-        this.major = major;
-        this.minor = minor;
-        this.patch = patch;
-        this.protocol = MappingTable.findProtocol(classic, major, minor, patch);
+        this(classic ? VersionFamily.CLASSIC : VersionFamily.DROP, major, minor, patch);
     }
 
     /**
-     * Returns the numeric version string without adding any descriptive prefix.
+     * Returns the identifier text, including the phase prefix, build suffix, and qualifier.
      *
-     * <p>The returned text preserves the same three-segment model used by this value object:
-     * the patch segment is omitted when it is {@code 0}.</p>
+     * <p>The result reproduces the original identifier: {@code b1.7.3}, {@code a1.0.17_02},
+     * {@code a1.2.2a}, {@code 1.21.11}, {@code 26.1}.</p>
      *
-     * @return normalized numeric version text
+     * @return normalized identifier text
      */
     @NotNull
     public String getVersion() {
-        return major + "." + minor + (patch != 0 ? "." + patch : "");
+        StringBuilder builder = new StringBuilder(phase.getPrefix())
+                .append(major).append('.').append(minor);
+
+        // Alpha identifiers always carry three segments, even when the patch is zero (a1.1.0).
+        if (patch != 0 || phase == VersionPhase.ALPHA)
+            builder.append('.').append(patch);
+
+        if (build != 0)
+            builder.append(build < 10 ? "_0" : "_").append(build);
+
+        if (qualifier != 0)
+            builder.append(qualifier);
+
+        return builder.toString();
+    }
+
+    /**
+     * Whether this identifier is written in classic {@code 1.x} numbering.
+     *
+     * @return {@code true} when the family is {@link VersionFamily#CLASSIC}
+     * @deprecated use {@code getFamily()} and {@link VersionFamily} instead. The name collides
+     * with Minecraft's own Classic era, which this library does not model.
+     */
+    @Deprecated
+    public boolean isClassic() {
+        return family == VersionFamily.CLASSIC;
+    }
+
+    /**
+     * Whether this identifier belongs to the full release line.
+     *
+     * @return {@code true} when the phase is {@link VersionPhase#RELEASE}
+     */
+    public boolean isRelease() {
+        return phase == VersionPhase.RELEASE;
+    }
+
+    /**
+     * Whether this identifier belongs to the Alpha or Beta line.
+     *
+     * @return {@code true} when the phase precedes the release line
+     */
+    public boolean isPreRelease() {
+        return phase.isPreRelease();
     }
 
     /**
@@ -109,37 +224,47 @@ public final class MinecraftVersion {
      * @return {@code true} when hex colors are supported
      */
     public boolean supportsHex() {
-        if (classic)
+        if (phase.isPreRelease()) return false;
+
+        if (family == VersionFamily.CLASSIC)
             return major > 1 || (major == 1 && minor >= 16);
 
         return major > 20 || (major == 20 && minor >= 1);
     }
 
     /**
-     * Returns a readable description that includes the numbering family and the normalized
-     * numeric value.
+     * Returns a readable description that includes the family, the phase, and the identifier.
      *
-     * <p>Examples: {@code "classic 1.21.6"} or {@code "drop 25.2.1"}.</p>
+     * <p>Examples: {@code "classic 1.21.6"}, {@code "classic beta b1.7.3"}, {@code "drop 25.2.1"}.</p>
      *
      * @return descriptive representation of this instance
      */
     @Override
     public String toString() {
-        return (classic ? "classic " : "drop ") + getVersion();
+        String familyName = family == VersionFamily.CLASSIC ? "classic " : "drop ";
+        String phaseName = phase.isPreRelease() ? phase.getDisplayName().toLowerCase() + " " : "";
+
+        return familyName + phaseName + getVersion();
     }
 
     /**
      * Parses a textual version into a {@code MinecraftVersion}.
      *
-     * <p>The parser accepts only dotted numeric values with two or three segments. It then
-     * classifies the number using the library's supported families:</p>
+     * <p>The parser accepts dotted numeric values with two or three segments, optionally carrying
+     * a phase marker, a {@code _NN} build suffix, and a trailing letter qualifier. The phase may
+     * be written as a prefix letter ({@code b1.7.3}), a prefix word ({@code Beta 1.7.3}), or a
+     * suffix word ({@code 1.7.3-beta}), case-insensitively.</p>
+     *
+     * <p>The numeric part is then classified into a family:</p>
      * <ul>
-     *     <li>{@code 1.x} or {@code 1.x.y} is treated as a classic Java release number.</li>
-     *     <li>{@code 11.x} through {@code 99.x} is treated as a year-based drop number.</li>
+     *     <li>{@code 1.x} or {@code 1.x.y} is treated as classic numbering.</li>
+     *     <li>{@code 10.x} through {@code 99.x} is treated as year-based drop numbering. The
+     *     {@code 10.x} line only holds the 2010 Alpha and Beta slot.</li>
      * </ul>
      *
      * <p>Whitespace around the input is ignored. Any other shape is rejected so the conversion
-     * layer can operate on a well-defined model.</p>
+     * layer can operate on a well-defined model. In particular, identifiers with four numeric
+     * segments are rejected outright instead of being truncated to the first three.</p>
      *
      * @param text version text to parse; must not be {@code null}
      * @return parsed immutable representation of the supplied version
@@ -148,23 +273,45 @@ public final class MinecraftVersion {
      */
     @NotNull
     public static MinecraftVersion parse(@NotNull String text) {
-        String s = Objects.requireNonNull(text, "text").trim();
+        String value = Objects.requireNonNull(text, "text").trim();
 
-        Matcher m = DOT_VERSION.matcher(s);
+        Matcher m = IDENTIFIER.matcher(value);
         if (!m.matches())
             throw new IllegalArgumentException("Unsupported version format: " + text);
 
-        int first = Integer.parseInt(m.group(1));
-        int second = Integer.parseInt(m.group(2));
-        int third = (m.group(3) != null) ? Integer.parseInt(m.group(3)) : 0;
+        VersionPhase phase = VersionPhase.byNameOrRelease(m.group(1) != null ? m.group(1) : m.group(7));
+
+        int first = Integer.parseInt(m.group(2));
+        int second = Integer.parseInt(m.group(3));
+        int third = m.group(4) != null ? Integer.parseInt(m.group(4)) : 0;
+        int build = m.group(5) != null ? Integer.parseInt(m.group(5)) : 0;
+        char qualifier = m.group(6) != null ? Character.toLowerCase(m.group(6).charAt(0)) : 0;
+
+        // Alpha and Beta only ever used the 1.x shape, so they are always classic numbering.
+        if (phase.isPreRelease()) {
+            if (first != 1)
+                throw new IllegalArgumentException("Unsupported pre-release version number: " + text);
+
+            return new MinecraftVersion(VersionFamily.CLASSIC, phase, first, second, third, build, qualifier);
+        }
 
         if (first == 1)
-            return new MinecraftVersion(true, first, second, third);
+            return new MinecraftVersion(VersionFamily.CLASSIC, phase, first, second, third, build, qualifier);
 
-        if (first >= 11 && first <= 99)
-            return new MinecraftVersion(false, first, second, third);
+        if (first >= 10 && first <= 99)
+            return new MinecraftVersion(VersionFamily.DROP, phase, first, second, third, build, qualifier);
 
         throw new IllegalArgumentException("Unsupported version number: " + text);
+    }
+
+    /**
+     * Returns whether the supplied text is a complete, well-formed version identifier.
+     *
+     * @param text version text to test
+     * @return {@code true} when {@link #parse(String)} would succeed
+     */
+    public static boolean isIdentifier(@Nullable String text) {
+        return text != null && IDENTIFIER.matcher(text.trim()).matches();
     }
 
     /**
@@ -184,8 +331,13 @@ public final class MinecraftVersion {
     public static Integer protocolForIdentifier(@NotNull String identifier) {
         String normalized = Objects.requireNonNull(identifier, "identifier").trim();
 
-        if (DOT_VERSION.matcher(normalized).matches())
-            return parse(normalized).getProtocol();
+        if (isIdentifier(normalized)) {
+            try {
+                return parse(normalized).getProtocol();
+            } catch (IllegalArgumentException ignored) {
+                return null;
+            }
+        }
 
         return MappingTable.findSnapshotProtocol(normalized);
     }
@@ -196,6 +348,10 @@ public final class MinecraftVersion {
      * <p>The returned list is ordered from the earliest known matching release to the latest one.
      * When the protocol only exists in Mojang's year-based drop numbering, the list contains the
      * corresponding projected classic aliases produced by {@link VersionScheme#MOJANG}.</p>
+     *
+     * <p>Alpha and Beta versions are deliberately absent from this index. Their protocol numbers
+     * are small integers that overlap the early release line, so including them would make the
+     * reverse lookup ambiguous.</p>
      *
      * @param protocol protocol number to inspect
      * @return immutable list of known versions for that protocol; empty when none are known
