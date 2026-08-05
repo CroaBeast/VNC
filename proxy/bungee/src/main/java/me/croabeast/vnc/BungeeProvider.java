@@ -6,7 +6,6 @@ import org.jetbrains.annotations.Nullable;
 
 final class BungeeProvider implements VNCProvider {
 
-    @Override
     @NotNull
     public VNCProvider.VersionInfo resolve() {
         return resolve(ProxyServer.getInstance());

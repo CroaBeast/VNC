@@ -6,7 +6,6 @@ import org.jetbrains.annotations.Nullable;
 
 final class ForgeProvider implements VNCProvider {
 
-    @Override
     @NotNull
     public VNCProvider.VersionInfo resolve() {
         return VersionResolver.resolve(

@@ -32,7 +32,6 @@ final class NeoForgeProvider implements VNCProvider {
         }
     }
 
-    @Override
     @NotNull
     public VNCProvider.VersionInfo resolve() {
         if (!isJavaSupported())

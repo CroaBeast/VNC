@@ -16,7 +16,6 @@ final class VelocityProvider implements VNCProvider {
         }
     }
 
-    @Override
     @NotNull
     public VNCProvider.VersionInfo resolve() {
         String version = System.getProperty("minecraft.version");

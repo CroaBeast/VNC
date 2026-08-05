@@ -45,7 +45,6 @@ final class BukkitProvider implements VNCProvider {
         }
     }
 
-    @Override
     @NotNull
     public VNCProvider.VersionInfo resolve() {
         BukkitServerVersionInfo server = resolveServerInfo();
