@@ -306,7 +306,20 @@ public class VNC {
         provider = trySponge();
         if (provider != null) return provider;
 
-        return tryLiteLoader();
+        provider = tryRift();
+        if (provider != null) return provider;
+
+        provider = tryLiteLoader();
+        if (provider != null) return provider;
+
+        provider = tryModLoader();
+        if (provider != null) return provider;
+
+        provider = tryNilLoader();
+        if (provider != null) return provider;
+
+        // Generic agents match any instrumented runtime, so they stay last.
+        return tryJavaAgent();
     }
 
     @Nullable
@@ -387,9 +400,45 @@ public class VNC {
     }
 
     @Nullable
+    private VNCProvider tryRift() {
+        try {
+            return available(new RiftProvider());
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
     private VNCProvider tryLiteLoader() {
         try {
             return available(new LiteLoaderProvider());
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private VNCProvider tryModLoader() {
+        try {
+            return available(new ModLoaderProvider());
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private VNCProvider tryNilLoader() {
+        try {
+            return available(new NilLoaderProvider());
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private VNCProvider tryJavaAgent() {
+        try {
+            return available(new JavaAgentProvider());
         } catch (Throwable ignored) {
             return null;
         }

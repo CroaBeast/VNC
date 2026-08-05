@@ -16,7 +16,8 @@ allprojects {
     }
 }
 
-val javaProjects = subprojects.filter { it.path != ":mod" && it.path != ":proxy" }
+val containerPaths = setOf(":mod", ":agent", ":proxy")
+val javaProjects = subprojects.filter { it.path !in containerPaths }
 
 configure(javaProjects) {
     apply(plugin = "java-library")

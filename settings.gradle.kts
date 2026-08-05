@@ -10,6 +10,10 @@ include(
     "mod:neoforge",
     "mod:sponge",
     "mod:liteloader",
+    "mod:rift",
+    "mod:modloader",
+    "agent:nilloader",
+    "agent:java",
     "proxy:bungee",
     "proxy:velocity"
 )

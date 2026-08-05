@@ -35,6 +35,42 @@ public class VersionResolver {
         return null;
     }
 
+    /**
+     * Looks up a runtime class without initializing it.
+     *
+     * <p>Agent-based loaders can end up on a different class loader than the game, so the lookup
+     * also retries through the thread context class loader.</p>
+     *
+     * @param name fully qualified class name
+     * @return the class when present in the current runtime, otherwise null
+     */
+    @Nullable
+    public static Class<?> findClass(@NotNull String name) {
+        try {
+            return Class.forName(name, false, VersionResolver.class.getClassLoader());
+        } catch (Throwable ignored) {}
+
+        try {
+            return Class.forName(name, false, Thread.currentThread().getContextClassLoader());
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Reads the implementation version declared by the manifest of the supplied class.
+     *
+     * @param type class to inspect, or null
+     * @return declared implementation version, or null when unavailable
+     */
+    @Nullable
+    public static String implementationVersion(@Nullable Class<?> type) {
+        if (type == null) return null;
+
+        Package pkg = type.getPackage();
+        return pkg != null ? pkg.getImplementationVersion() : null;
+    }
+
     @Nullable
     public static String firstNonBlank(@Nullable String... values) {
         if (values == null) return null;

@@ -11,6 +11,10 @@ val bundledProjects = listOf(
     project(":mod:neoforge"),
     project(":mod:sponge"),
     project(":mod:liteloader"),
+    project(":mod:rift"),
+    project(":mod:modloader"),
+    project(":agent:nilloader"),
+    project(":agent:java"),
     project(":proxy:bungee"),
     project(":proxy:velocity")
 )
@@ -24,6 +28,10 @@ dependencies {
     api(project(":mod:neoforge"))
     api(project(":mod:sponge"))
     api(project(":mod:liteloader"))
+    api(project(":mod:rift"))
+    api(project(":mod:modloader"))
+    api(project(":agent:nilloader"))
+    api(project(":agent:java"))
     api(project(":proxy:bungee"))
     api(project(":proxy:velocity"))
 }
