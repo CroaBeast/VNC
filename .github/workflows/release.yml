@@ -238,5 +238,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --title "$VERSION" \
             --notes-file release-notes.md \
-            --target "$HEAD_SHA" \
-            --latest=false
+            --target "$HEAD_SHA"
