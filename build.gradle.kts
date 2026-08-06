@@ -53,12 +53,22 @@ configure(javaProjects) {
             options.release.set(8)
     }
 
+    tasks.withType<Test>().configureEach {
+        useJUnitPlatform()
+        testLogging {
+            events("failed")
+        }
+    }
+
     dependencies {
         "compileOnly"("org.jetbrains:annotations:26.0.2")
         "annotationProcessor"("org.jetbrains:annotations:26.0.2")
 
         "compileOnly"("org.projectlombok:lombok:1.18.44")
         "annotationProcessor"("org.projectlombok:lombok:1.18.44")
+
+        "testImplementation"("org.junit.jupiter:junit-jupiter:5.11.4")
+        "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
     }
 
 }
