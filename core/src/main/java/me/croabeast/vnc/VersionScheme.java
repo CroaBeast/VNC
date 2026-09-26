@@ -80,10 +80,11 @@ public interface VersionScheme {
      * {@code 1.20.3 -> 23.2} and {@code 1.21.4 -> 24.4} are treated as separate drops instead of
      * being folded into the same release line.</p>
      *
-     * <p>For post-2025 releases, Mojang no longer publishes a classic {@code 1.x.y} alias. To
-     * avoid inventing more structure than the official numbering guarantees, this scheme only
-     * projects the first drop of a future year back into classic form. Additional future drops
-     * without an explicit table entry are rejected rather than guessed.</p>
+     * <p>For post-2025 releases, Mojang no longer publishes a classic {@code 1.x.y} alias. This
+     * scheme gives each drop its own classic minor line: {@code 26.1 -> 1.22},
+     * {@code 26.2 -> 1.23}, {@code 26.3 -> 1.24}. Drops newer than the table are projected as
+     * the following minors ({@code 26.4 -> 1.25}, {@code 27.1 -> 1.25}), which keeps version
+     * gates ordered but is only exact once the line is registered.</p>
      */
     VersionScheme MOJANG = new VersionScheme() {
         @NotNull
@@ -118,9 +119,9 @@ public interface VersionScheme {
      * <p>Under this scheme, the release line represented officially by {@code 1.21.11} /
      * {@code 25.4} is treated as a custom {@code 1.22}. Hotfixes on that custom line continue
      * naturally as {@code 1.22.1 -> 25.4.1}, {@code 1.22.2 -> 25.4.2}, and so on. Because the
-     * base {@code 1.22} identifier is already consumed by that alias, projected future aliases
-     * move forward by one classic minor line: {@code 26.1 -> 1.23},
-     * {@code 26.1.1 -> 1.23.1}, {@code 27.1 -> 1.24}, and so on.</p>
+     * base {@code 1.22} identifier is already consumed by that alias, every later drop moves
+     * forward by one classic minor line: {@code 26.1 -> 1.23}, {@code 26.1.1 -> 1.23.1},
+     * {@code 26.2 -> 1.24}, {@code 26.3 -> 1.25}, and so on.</p>
      *
      * <p>Outside that reinterpretation, this scheme follows {@link #MOJANG} as closely as
      * possible.</p>

@@ -322,7 +322,7 @@ public final class MinecraftVersion {
      * up through the separate published snapshot protocol table.</p>
      *
      * <p>This method deliberately returns {@code null} for projected future releases like
-     * {@code 26.2} or {@code 1.22.3} until Mojang publishes an exact release protocol.</p>
+     * {@code 27.1} or {@code 1.26} until Mojang publishes an exact release protocol.</p>
      *
      * @param identifier dotted release/drop version or Mojang snapshot id
      * @return published protocol when known, otherwise {@code null}

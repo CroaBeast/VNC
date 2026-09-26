@@ -27,6 +27,9 @@ public final class MappingTable {
     static final Map<String, Integer> SNAPSHOT_PROTOCOLS = createSnapshotProtocols();
     static final Map<String, Integer> PRE_RELEASE_PROTOCOLS = createPreReleaseProtocols();
 
+    // Newest drop line registered in the built-in tables; projections start after it.
+    private static final int LATEST_YEAR = 26, LATEST_RELEASE = 3;
+
     private final Map<String, String> classicToDrop = new LinkedHashMap<>();
     private final Map<String, String> dropToClassic = new LinkedHashMap<>();
 
@@ -126,6 +129,23 @@ public final class MappingTable {
     }
 
     static MappingTable createMojangMappings() {
+        return createSharedMappings()
+                .registerLine(26, 1, "1.22", "1.22.1", "1.22.2")
+                .registerLine(26, 2, "1.23")
+                .registerLine(26, 3, "1.24");
+    }
+
+    static MappingTable createCroaCustomMappings() {
+        return createSharedMappings()
+                .registerMapping("1.22", "25.4")
+                .registerLine(26, 1, "1.23", "1.23.1", "1.23.2")
+                .registerLine(26, 2, "1.24")
+                .registerLine(26, 3, "1.25");
+    }
+
+    // Lines up to 25.4, identical in every scheme. Each year drop from 26.1 onward is its own
+    // classic minor, and the schemes disagree on which minor that is, so they add those lines.
+    private static MappingTable createSharedMappings() {
         return new MappingTable()
                 // Alpha and Beta take slot 0 of their year, indexed chronologically. Slot 0 was
                 // never used by a release, so the release lines below stay untouched.
@@ -174,11 +194,6 @@ public final class MappingTable {
                 .registerLine(25, 2, "1.21.6", "1.21.7", "1.21.8")
                 .registerLine(25, 3, "1.21.9", "1.21.10")
                 .registerLine(25, 4, "1.21.11");
-    }
-
-    static MappingTable createCroaCustomMappings() {
-        return createMojangMappings()
-                .registerMapping("1.22", "25.4");
     }
 
     static Map<String, String> createCroaCustomAliases() {
@@ -305,6 +320,8 @@ public final class MappingTable {
         putDropProtocol(protocols, "26.1", 775);
         putDropProtocol(protocols, "26.1.1", 775);
         putDropProtocol(protocols, "26.1.2", 775);
+        putDropProtocol(protocols, "26.2", 776);
+        putDropProtocol(protocols, "26.3", 777);
         return Collections.unmodifiableMap(protocols);
     }
 
@@ -349,6 +366,36 @@ public final class MappingTable {
         protocols.put("26.2-snapshot-1", 1073742130);
         protocols.put("26.2-snapshot-2", 1073742132);
         protocols.put("26.2-snapshot-3", 1073742133);
+        protocols.put("26.2-snapshot-4", 1073742134);
+        protocols.put("26.2-snapshot-5", 1073742135);
+        protocols.put("26.2-snapshot-6", 1073742136);
+        protocols.put("26.2-snapshot-7", 1073742137);
+        protocols.put("26.2-snapshot-8", 1073742138);
+        protocols.put("26.2-pre-1", 1073742139);
+        protocols.put("26.2-pre-2", 1073742140);
+        protocols.put("26.2-pre-3", 1073742141);
+        protocols.put("26.2-pre-4", 1073742142);
+        protocols.put("26.2-pre-5", 1073742143);
+        protocols.put("26.2-pre-6", 1073742144);
+        protocols.put("26.2-rc-1", 1073742145);
+        protocols.put("26.2-rc-2", 1073742146);
+        protocols.put("26.3-snapshot-1", 1073742147);
+        protocols.put("26.3-snapshot-2", 1073742148);
+        protocols.put("26.3-snapshot-3", 1073742149);
+        protocols.put("26.3-snapshot-4", 1073742150);
+        protocols.put("26.3-snapshot-5", 1073742151);
+        protocols.put("26.3-snapshot-6", 1073742152);
+        protocols.put("26.3-snapshot-7", 1073742153);
+        protocols.put("26.3-snapshot-8", 1073742154);
+        protocols.put("26.3-snapshot-9", 1073742155);
+        protocols.put("26.3-snapshot-10", 1073742156);
+        protocols.put("26.3-pre-1", 1073742157);
+        protocols.put("26.3-pre-2", 1073742158);
+        protocols.put("26.3-pre-3", 1073742159);
+        protocols.put("26.3-rc-1", 1073742160);
+        protocols.put("26.3-rc-2", 1073742161);
+        protocols.put("26.3-rc-3", 1073742162);
+        protocols.put("26.4-snapshot-1", 1073742163);
         return Collections.unmodifiableMap(protocols);
     }
 
@@ -362,60 +409,20 @@ public final class MappingTable {
 
     @NotNull
     static String projectOfficialClassic(@NotNull MinecraftVersion version) {
-        int year = version.getMajor();
-        int release = version.getMinor();
-        int hotfix = version.getPatch();
-
-        if (year >= 26 && release == 1)
-            return "1." + (year - 4) + (hotfix > 0 ? "." + hotfix : "");
-
-        if (year == 26 && release == 2)
-            return "1.22." + (hotfix + 3);
-
-        throw new IllegalArgumentException(
-                "No exact Mojang-style classic alias is defined for drop version " +
-                        normalizeDrop(version) +
-                        ". Future drops beyond the first release of a year need an explicit table entry."
-        );
+        return projectClassic(version, 24, "Mojang-style");
     }
 
     @NotNull
     static String projectOfficialDrop(@NotNull MinecraftVersion version) {
-        if (version.getPhase().isPreRelease())
-            throw new IllegalArgumentException(
-                    "No drop mapping is defined for pre-release version " + version.getVersion() +
-                            ". Only the Alpha and Beta identifiers published by Mojang are mapped."
-            );
-
-        if (version.getMajor() == 1 && version.getMinor() == 22 && version.getPatch() >= 3)
-            return "26.2" + (version.getPatch() > 3 ? "." + (version.getPatch() - 3) : "");
-
-        if (version.getMajor() == 1 && version.getMinor() >= 22)
-            return (version.getMinor() + 4) + ".1" + (version.getPatch() > 0 ? "." + version.getPatch() : "");
-
-        throw new IllegalArgumentException(
-                "No exact Mojang-style drop mapping is defined for classic version " +
-                        normalizeClassic(version) +
-                        ". Add the release line explicitly instead of guessing."
-        );
+        return projectDrop(version, 24, "Mojang-style");
     }
 
     @NotNull
     static String projectCustomClassic(@NotNull MinecraftVersion version) {
-        int year = version.getMajor();
-        int release = version.getMinor();
-        int hotfix = version.getPatch();
+        if (version.getMajor() == 25 && version.getMinor() == 4 && version.getPatch() > 0)
+            return "1.22." + version.getPatch();
 
-        if (year == 25 && release == 4 && hotfix > 0)
-            return "1.22." + hotfix;
-
-        if (year >= 26 && release == 1)
-            return "1." + (year - 3) + (hotfix > 0 ? "." + hotfix : "");
-
-        if (year == 26 && release == 2)
-            return "1.23." + (hotfix + 3);
-
-        return projectOfficialClassic(version);
+        return projectClassic(version, 25, "custom");
     }
 
     @NotNull
@@ -423,13 +430,46 @@ public final class MappingTable {
         if (version.getMajor() == 1 && version.getMinor() == 22 && version.getPatch() > 0)
             return "25.4." + version.getPatch();
 
-        if (version.getMajor() == 1 && version.getMinor() == 23 && version.getPatch() >= 3)
-            return "26.2" + (version.getPatch() > 3 ? "." + (version.getPatch() - 3) : "");
+        return projectDrop(version, 25, "custom");
+    }
 
-        if (version.getMajor() == 1 && version.getMinor() >= 23)
-            return (version.getMinor() + 3) + ".1" + (version.getPatch() > 0 ? "." + version.getPatch() : "");
+    // Drops newer than the latest table line are approximated as the following classic minors,
+    // one per drop, so version gates keep ordering them correctly. The exact minor of a new year
+    // is unknown until its lines are added to the table, so 27.1 may later map elsewhere.
+    @NotNull
+    private static String projectClassic(@NotNull MinecraftVersion version, int latestMinor, String scheme) {
+        int year = version.getMajor();
+        int release = version.getMinor();
+        String hotfix = version.getPatch() > 0 ? "." + version.getPatch() : "";
 
-        return projectOfficialDrop(version);
+        if (year == LATEST_YEAR && release == LATEST_RELEASE)
+            return "1." + latestMinor + hotfix;
+
+        if (year > LATEST_YEAR || (year == LATEST_YEAR && release > LATEST_RELEASE))
+            return "1." + (latestMinor + (year == LATEST_YEAR ? release - LATEST_RELEASE : release)) + hotfix;
+
+        throw new IllegalArgumentException(
+                "No exact " + scheme + " classic alias is defined for drop version " +
+                        normalizeDrop(version) + ". Add the release line to the mapping table."
+        );
+    }
+
+    @NotNull
+    private static String projectDrop(@NotNull MinecraftVersion version, int latestMinor, String scheme) {
+        if (version.getPhase().isPreRelease())
+            throw new IllegalArgumentException(
+                    "No drop mapping is defined for pre-release version " + version.getVersion() +
+                            ". Only the Alpha and Beta identifiers published by Mojang are mapped."
+            );
+
+        if (version.getMajor() == 1 && version.getMinor() >= latestMinor)
+            return LATEST_YEAR + "." + (LATEST_RELEASE + version.getMinor() - latestMinor) +
+                    (version.getPatch() > 0 ? "." + version.getPatch() : "");
+
+        throw new IllegalArgumentException(
+                "No exact " + scheme + " drop mapping is defined for classic version " +
+                        normalizeClassic(version) + ". Add the release line to the mapping table."
+        );
     }
 
     @NotNull
