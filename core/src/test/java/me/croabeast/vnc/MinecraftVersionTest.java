@@ -118,6 +118,15 @@ class MinecraftVersionTest {
     }
 
     @Test
+    void resolvesProtocolsForYearDrops() {
+        assertEquals(776, MinecraftVersion.protocolForIdentifier("26.2"));
+        assertEquals(777, MinecraftVersion.protocolForIdentifier("26.3"));
+        assertEquals(1073742146, MinecraftVersion.protocolForIdentifier("26.2-rc-2"));
+        assertEquals(1073742162, MinecraftVersion.protocolForIdentifier("26.3-rc-3"));
+        assertEquals("1.24", MinecraftVersion.fromProtocol(777).getVersion());
+    }
+
+    @Test
     void leavesUnpublishedReleasesWithoutAProtocol() {
         assertNull(MinecraftVersion.protocolForIdentifier("1.99.9"));
     }

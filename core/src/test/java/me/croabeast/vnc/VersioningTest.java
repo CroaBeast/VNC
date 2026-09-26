@@ -84,4 +84,37 @@ class VersioningTest {
         assertEquals("20.1", VersionScheme.MOJANG.toDrop("1.16"));
         assertEquals("1.16", VersionScheme.MOJANG.toClassic("20.1"));
     }
+
+    @Test
+    void mojangSchemeGivesEachDropItsOwnMinor() {
+        assertEquals("1.22", VersionScheme.MOJANG.toClassic("26.1"));
+        assertEquals("1.22.2", VersionScheme.MOJANG.toClassic("26.1.2"));
+        assertEquals("1.23", VersionScheme.MOJANG.toClassic("26.2"));
+        assertEquals("1.24", VersionScheme.MOJANG.toClassic("26.3"));
+
+        assertEquals("26.2", VersionScheme.MOJANG.toDrop("1.23"));
+        assertEquals("26.3", VersionScheme.MOJANG.toDrop("1.24"));
+        assertEquals(24.0D, Versioning.toLegacyServerVersion(VersionScheme.MOJANG.toClassic("26.3")), 0.0001D);
+    }
+
+    @Test
+    void customSchemeShiftsEveryDropByOneMinor() {
+        assertEquals("1.22.1", VersionScheme.CROA_CUSTOM.toClassic("25.4.1"));
+        assertEquals("1.23", VersionScheme.CROA_CUSTOM.toClassic("26.1"));
+        assertEquals("1.24", VersionScheme.CROA_CUSTOM.toClassic("26.2"));
+        assertEquals("1.25", VersionScheme.CROA_CUSTOM.toClassic("26.3"));
+
+        assertEquals("26.3", VersionScheme.CROA_CUSTOM.toDrop("1.25"));
+    }
+
+    @Test
+    void projectsDropsNewerThanTheTable() {
+        assertEquals("1.24.1", VersionScheme.MOJANG.toClassic("26.3.1"));
+        assertEquals("1.25", VersionScheme.MOJANG.toClassic("26.4"));
+        assertEquals("1.25", VersionScheme.MOJANG.toClassic("27.1"));
+        assertEquals("26.4", VersionScheme.MOJANG.toDrop("1.25"));
+
+        assertTrue(Versioning.compare(at("27.1"), "26.3") > 0);
+        assertThrows(IllegalArgumentException.class, () -> VersionScheme.MOJANG.toClassic("26.2.1"));
+    }
 }
