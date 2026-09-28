@@ -27,11 +27,11 @@ public final class MappingTable {
     static final Map<String, Integer> SNAPSHOT_PROTOCOLS = createSnapshotProtocols();
     static final Map<String, Integer> PRE_RELEASE_PROTOCOLS = createPreReleaseProtocols();
 
-    // Newest drop line registered in the built-in tables; projections start after it.
-    private static final int LATEST_YEAR = 26, LATEST_RELEASE = 3;
-
     private final Map<String, String> classicToDrop = new LinkedHashMap<>();
     private final Map<String, String> dropToClassic = new LinkedHashMap<>();
+
+    // Newest drop line registered through registerLine; projections start after it.
+    private int latestYear, latestRelease, latestMinor;
 
     /**
      * Registers a release line where one drop version maps to a sequence of classic versions.
@@ -52,6 +52,12 @@ public final class MappingTable {
             String drop = year + "." + release + (i == 0 ? "" : "." + i);
 
             registerMapping(classic, drop);
+        }
+
+        if (classicVersions.length > 0 && (year > latestYear || (year == latestYear && release > latestRelease))) {
+            latestYear = year;
+            latestRelease = release;
+            latestMinor = MinecraftVersion.parse(classicVersions[0]).getMinor();
         }
 
         return this;
@@ -88,6 +94,9 @@ public final class MappingTable {
         MappingTable copy = new MappingTable();
         copy.classicToDrop.putAll(classicToDrop);
         copy.dropToClassic.putAll(dropToClassic);
+        copy.latestYear = latestYear;
+        copy.latestRelease = latestRelease;
+        copy.latestMinor = latestMinor;
         return copy;
     }
 
@@ -409,12 +418,12 @@ public final class MappingTable {
 
     @NotNull
     static String projectOfficialClassic(@NotNull MinecraftVersion version) {
-        return projectClassic(version, 24, "Mojang-style");
+        return MOJANG_MAPPINGS.projectClassic(version, "Mojang-style");
     }
 
     @NotNull
     static String projectOfficialDrop(@NotNull MinecraftVersion version) {
-        return projectDrop(version, 24, "Mojang-style");
+        return MOJANG_MAPPINGS.projectDrop(version, "Mojang-style");
     }
 
     @NotNull
@@ -422,7 +431,7 @@ public final class MappingTable {
         if (version.getMajor() == 25 && version.getMinor() == 4 && version.getPatch() > 0)
             return "1.22." + version.getPatch();
 
-        return projectClassic(version, 25, "custom");
+        return CROA_CUSTOM_MAPPINGS.projectClassic(version, "custom");
     }
 
     @NotNull
@@ -430,23 +439,23 @@ public final class MappingTable {
         if (version.getMajor() == 1 && version.getMinor() == 22 && version.getPatch() > 0)
             return "25.4." + version.getPatch();
 
-        return projectDrop(version, 25, "custom");
+        return CROA_CUSTOM_MAPPINGS.projectDrop(version, "custom");
     }
 
     // Drops newer than the latest table line are approximated as the following classic minors,
     // one per drop, so version gates keep ordering them correctly. The exact minor of a new year
     // is unknown until its lines are added to the table, so 27.1 may later map elsewhere.
     @NotNull
-    private static String projectClassic(@NotNull MinecraftVersion version, int latestMinor, String scheme) {
+    private String projectClassic(@NotNull MinecraftVersion version, String scheme) {
         int year = version.getMajor();
         int release = version.getMinor();
         String hotfix = version.getPatch() > 0 ? "." + version.getPatch() : "";
 
-        if (year == LATEST_YEAR && release == LATEST_RELEASE)
+        if (year == latestYear && release == latestRelease)
             return "1." + latestMinor + hotfix;
 
-        if (year > LATEST_YEAR || (year == LATEST_YEAR && release > LATEST_RELEASE))
-            return "1." + (latestMinor + (year == LATEST_YEAR ? release - LATEST_RELEASE : release)) + hotfix;
+        if (year > latestYear || (year == latestYear && release > latestRelease))
+            return "1." + (latestMinor + (year == latestYear ? release - latestRelease : release)) + hotfix;
 
         throw new IllegalArgumentException(
                 "No exact " + scheme + " classic alias is defined for drop version " +
@@ -455,7 +464,7 @@ public final class MappingTable {
     }
 
     @NotNull
-    private static String projectDrop(@NotNull MinecraftVersion version, int latestMinor, String scheme) {
+    private String projectDrop(@NotNull MinecraftVersion version, String scheme) {
         if (version.getPhase().isPreRelease())
             throw new IllegalArgumentException(
                     "No drop mapping is defined for pre-release version " + version.getVersion() +
@@ -463,7 +472,7 @@ public final class MappingTable {
             );
 
         if (version.getMajor() == 1 && version.getMinor() >= latestMinor)
-            return LATEST_YEAR + "." + (LATEST_RELEASE + version.getMinor() - latestMinor) +
+            return latestYear + "." + (latestRelease + version.getMinor() - latestMinor) +
                     (version.getPatch() > 0 ? "." + version.getPatch() : "");
 
         throw new IllegalArgumentException(
