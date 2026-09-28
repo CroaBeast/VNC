@@ -110,6 +110,7 @@ public class VNC {
      */
     @Nullable
     public VNCProvider.VersionInfo resolveIfAvailable() {
+        if (SERVER != null) return SERVER;
         return PROVIDER != null ? PROVIDER.resolveIfAvailable() : null;
     }
 
@@ -121,7 +122,8 @@ public class VNC {
      */
     @NotNull
     public VNCProvider.VersionInfo resolve() {
-        return getProvider().resolve();
+        // The server version cannot change at runtime, so the snapshot taken at class load is reused.
+        return SERVER != null ? SERVER : getProvider().resolve();
     }
 
     /**
@@ -142,7 +144,7 @@ public class VNC {
      */
     @NotNull
     public String platform() {
-        return getProvider().getPlatform();
+        return resolve().getPlatform();
     }
 
     /**
@@ -152,7 +154,7 @@ public class VNC {
      * @return {@code true} when the server version is equal to or newer than {@code version}
      */
     public boolean isAtLeast(@NotNull String version) {
-        return getProvider().isAtLeast(version);
+        return resolve().isAtLeast(version);
     }
 
     /**
@@ -173,7 +175,7 @@ public class VNC {
      * @return {@code true} when the server version is older than {@code version}
      */
     public boolean isBefore(@NotNull String version) {
-        return getProvider().isBefore(version);
+        return resolve().isBefore(version);
     }
 
     /**
@@ -195,7 +197,7 @@ public class VNC {
      * @return {@code true} when the server version is within the range
      */
     public boolean isBetween(@NotNull String minInclusive, @NotNull String maxInclusive) {
-        return getProvider().isBetween(minInclusive, maxInclusive);
+        return resolve().isBetween(minInclusive, maxInclusive);
     }
 
     /**
