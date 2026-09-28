@@ -47,7 +47,7 @@ final class BukkitProvider implements VNCProvider {
 
     @NotNull
     public VNCProvider.VersionInfo resolve() {
-        BukkitServerVersionInfo server = resolveServerInfo();
+        BukkitServerVersionInfo server = serverInfo();
         return new VersionInfo("Bukkit", server.getServerFork(), server.getVersion());
     }
 
@@ -179,6 +179,11 @@ final class BukkitProvider implements VNCProvider {
         );
     }
 
+    @NotNull
+    private BukkitServerVersionInfo serverInfo() {
+        return SERVER != null ? SERVER : resolveServerInfo();
+    }
+
     @Nullable
     private BukkitServerVersionInfo resolveServerInfoOrNull() {
         try {
@@ -218,12 +223,12 @@ final class BukkitProvider implements VNCProvider {
 
     private int resolvePlayerProtocol(@NotNull Player player) {
         if (!Bukkit.getPluginManager().isPluginEnabled("ViaVersion"))
-            return resolveServerInfo().getProtocol();
+            return serverInfo().getProtocol();
 
         try {
             return Via.getAPI().getPlayerVersion(player.getUniqueId());
         } catch (Throwable ignored) {}
 
-        return resolveServerInfo().getProtocol();
+        return serverInfo().getProtocol();
     }
 }
